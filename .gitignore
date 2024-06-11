@@ -1,0 +1,6 @@
+*pycache*
+.idea
+.venv
+cache
+bili_user_*
+cookies.txt
