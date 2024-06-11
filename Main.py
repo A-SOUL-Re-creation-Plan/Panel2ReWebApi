@@ -35,6 +35,30 @@ bili_headers = {
 
 bili_cookie = {}
 
+as_e2c = {
+    'ava': '向晚',
+    'bella': '贝拉',
+    'diana': '嘉然',
+    'eileen': '乃琳',
+    'asoul': 'A-SOUL'
+}
+
+as_color = {
+    'ava': '#9ac8e2',
+    'bella': '#db7d74',
+    'diana': '#e799b0',
+    'eileen': '#576690',
+    'asoul': '#fc966e'
+}
+
+as_liveroom = {
+    'ava': 'https://live.bilibili.com/22625025',
+    'bella': 'https://live.bilibili.com/22632424',
+    'diana': 'https://live.bilibili.com/22637261',
+    'eileen': 'https://live.bilibili.com/22625027',
+    'asoul': 'https://live.bilibili.com/22632157',
+}
+
 
 def importBiliCookie():
     global bili_cookie
@@ -142,69 +166,49 @@ class getBiliDynamic(Resource):
         else:
             return {'errno': -1, 'data': 'ERR_NOT_A-SOUL_RELATED'}, 403
 
+
 class getASWeeklySchedule(Resource):
     def get(self):
-        return {
-            "code": 0,
-            "data": [
-                {
-                    'title': '嘉然单播',
-                    'url': 'https://live.bilibili.com/22637261',
-                    'start': '2024-06-05T19:20:00Z',
-                    'end': '2024-06-05T20:40:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': '贝拉单播',
-                    'url': 'https://live.bilibili.com/22632424',
-                    'start': '2024-06-05T20:50:00Z',
-                    'end': '2024-06-05T22:10:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': '贝拉单播',
-                    'url': 'https://live.bilibili.com/22632424',
-                    'start': '2024-06-06T19:20:00Z',
-                    'end': '2024-06-06T20:40:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': '乃琳单播',
-                    'url': 'https://live.bilibili.com/22625027',
-                    'start': '2024-06-06T20:50:00Z',
-                    'end': '2024-06-06T22:10:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': 'A-SOUL游戏室',
-                    'url': 'https://live.bilibili.com/22625027',
-                    'start': '2024-06-08T19:50:00Z',
-                    'end': '2024-06-08T22:00:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': 'A-SOUL游戏室',
-                    'url': 'https://live.bilibili.com/22625027',
-                    'start': '2024-06-08T19:50:00Z',
-                    'end': '2024-06-08T22:00:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': 'A-SOUL游戏室',
-                    'url': 'https://live.bilibili.com/22625027',
-                    'start': '2024-06-08T19:50:00Z',
-                    'end': '2024-06-08T22:00:00Z',
-                    'allDay': False,
-                },
-                {
-                    'title': 'A-SOUL游戏室',
-                    'url': 'https://live.bilibili.com/22625027',
-                    'start': '2024-06-08T19:50:00Z',
-                    'end': '2024-06-08T22:00:00Z',
-                    'allDay': False,
-                },
-            ]
-        }
+        if not os.path.exists('schedule_table.json'):
+            open('schedule_table.json', 'w').close()
+            print('schedule data file not exist')
+            return {
+                "code": -1,
+                "data": []
+            }, 200
+        with open('schedule_table.json', 'r', encoding='utf8') as f:
+            data = json.loads(f.read())
+            s_data = []
+            live_type = ['单播', 'A-SOUL 团播', 'A-SOUL 特别直播', '双播', '官方测试直播']
+            for i in data:
+                actor = as_e2c[i['room']]
+                url = as_liveroom[i['room']]
+                color = as_color[i['room']]
+                time = i['time']
+                desc = ''
+                s_type = int(i['type'])
+                if s_type == 0:
+                    desc = actor + live_type[s_type]
+                else:
+                    if s_type == 2:
+                        desc = live_type[s_type]
+                    else:
+                        if s_type == 3:
+                            desc += actor + as_e2c[i['partner']] + live_type[s_type]
+                        else:
+                            desc = live_type[s_type]
+                desc += " - " + i['desc']
+                s_data.append({
+                    'title': desc,
+                    'url': url,
+                    'color': color,
+                    'start': time,
+                })
+            return {
+                "code": 0,
+                "data": s_data
+            }, 200
+
 
 class getVersion(Resource):
     def get(self):
