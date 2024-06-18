@@ -62,22 +62,22 @@ as_liveroom = {
 
 def importBiliCookie():
     global bili_cookie
-    if os.path.exists('cookies.json'):
-        with open('cookies.json', 'r') as f:
-            print("Import from JSON")
+    if os.path.exists('user_data.json'):
+        with open('user_data.json', 'r') as f:
             bili_cookie = json.loads(f.read())
+            bili_cookie = bili_cookie[list(bili_cookie.keys())[0]]
+            print("Import from JSON")
+    elif os.path.exists('cookies.txt'):
+        with open('cookies.txt', 'r') as f:
+            print("Import from raw cookie string")
+            cookie_raw = f.read()
+            cookie_raw = cookie_raw.split('; ')
+            for cookie in cookie_raw:
+                cookie = cookie.split('=')
+                bili_cookie[cookie[0]] = cookie[1]
     else:
-        if os.path.exists('cookies.txt'):
-            with open('cookies.txt', 'r') as f:
-                print("Import from raw cookie string")
-                cookie_raw = f.read()
-                cookie_raw = cookie_raw.split('; ')
-                for cookie in cookie_raw:
-                    cookie = cookie.split('=')
-                    bili_cookie[cookie[0]] = cookie[1]
-        else:
-            print("Cookie file not found")
-            sys.exit(0)
+        print("Cookie file not found")
+        sys.exit(0)
 
 
 def getBiliUserInfo(bili_uid):
@@ -154,17 +154,26 @@ class getBiliList(Resource):
 class getBiliDynamic(Resource):
     def get(self):
         uid = request.args.get("uid")
+        offset = ""
+        if request.args.get("offset"):
+            offset = request.args.get("offset")
         a_uid = ['547510303', '672353429', '672346917', '672328094', '672342685', '703007996', '3493085336046382']
         if uid in a_uid:
             params = {
-                'host_mid': request.args.get('uid')
+                'host_mid': uid,
+                'offset': offset
             }
             data = json.loads(requests.get('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space',
                                            headers=bili_headers, params=params, cookies=bili_cookie)
                               .text)
-            return data['data']['items']
+            print(data["code"])
+            dynamic_items = data['data']
+            return dynamic_items
         else:
-            return {'errno': -1, 'data': 'ERR_NOT_A-SOUL_RELATED'}, 403
+            return {
+                'errno': -1,
+                'data': 'ERR_NOT_A-SOUL_RELATED'
+            }, 403
 
 
 class getASWeeklySchedule(Resource):
