@@ -188,7 +188,7 @@ class getASWeeklySchedule(Resource):
         with open('schedule_table.json', 'r', encoding='utf8') as f:
             data = json.loads(f.read())
             s_data = []
-            live_type = ['单播', 'A-SOUL 团播', 'A-SOUL 特别直播', '双播', '官方测试直播']
+            live_type = ['单播', 'A-SOUL团播', 'A-SOUL特别直播', '双播', '官方测试直播']
             for i in data:
                 actor = as_e2c[i['room']]
                 url = as_liveroom[i['room']]
