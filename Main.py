@@ -218,6 +218,10 @@ class getASWeeklySchedule(Resource):
                 "data": s_data
             }, 200
 
+class getPubArchiveList(Resource):
+    def get(self):
+        data = json.loads(requests.get("https://member.bilibili.com/x/web/archives",headers=bili_headers,cookies=bili_cookie).text)
+        return data["data"]["arc_audits"]
 
 class getVersion(Resource):
     def get(self):
@@ -228,6 +232,7 @@ api.add_resource(getBiliList, '/bili_dynamic')
 api.add_resource(getVersion, '/version')
 api.add_resource(getBiliDynamic, '/bili_dynamics')
 api.add_resource(getASWeeklySchedule, '/weekly_schedule')
+api.add_resource(getPubArchiveList, '/bili_archives')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
