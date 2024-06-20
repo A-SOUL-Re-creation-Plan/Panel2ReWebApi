@@ -181,7 +181,7 @@ class getASWeeklySchedule(Resource):
                 else:
                     desc = live_type[s_type]
                 desc += " - " + i['desc']
-                s_data.append({
+                append_data = {
                     'title': desc,
                     'url': url,
                     'color': color,
@@ -191,9 +191,15 @@ class getASWeeklySchedule(Resource):
                     'pure_title': i['desc'],
                     'fullname': as_e2bn[i['room']],
                     'space': as_space[i['room']]
-                    # todo
-                    # 团播双播属性传递
-                })
+                }
+                if s_type == 3:
+                    append_data['partner'] = {
+                        'shortName': as_e2c[i['partner']],
+                        'fullname': as_e2bn[i['partner']],
+                        'space': as_space[i['partner']],
+                        'liveRoom': as_liveroom[i['partner']]
+                    }
+                s_data.append(append_data)
             return {
                 "code": 0,
                 "data": s_data
