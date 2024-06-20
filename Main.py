@@ -8,6 +8,7 @@ from flask_cors import CORS
 import requests
 from bili.bili_wbi import getWBI
 from datetime import datetime
+from as_config import *
 
 app = Flask(__name__)
 CORS(app)
@@ -34,31 +35,6 @@ bili_headers = {
 }
 
 bili_cookie = {}
-
-as_e2c = {
-    'ava': '向晚',
-    'bella': '贝拉',
-    'diana': '嘉然',
-    'eileen': '乃琳',
-    'asoul': 'A-SOUL'
-}
-
-as_color = {
-    'ava': '#9ac8e2',
-    'bella': '#db7d74',
-    'diana': '#e799b0',
-    'eileen': '#576690',
-    'asoul': '#fc966e'
-}
-
-as_liveroom = {
-    'ava': 'https://live.bilibili.com/22625025',
-    'bella': 'https://live.bilibili.com/22632424',
-    'diana': 'https://live.bilibili.com/22637261',
-    'eileen': 'https://live.bilibili.com/22625027',
-    'asoul': 'https://live.bilibili.com/22632157',
-}
-
 
 def importBiliCookie():
     global bili_cookie
@@ -191,27 +167,32 @@ class getASWeeklySchedule(Resource):
             live_type = ['单播', 'A-SOUL团播', 'A-SOUL特别直播', '双播', '官方测试直播']
             for i in data:
                 actor = as_e2c[i['room']]
-                url = as_liveroom[i['room']]
+                url = 'https://live.bilibili.com/' + as_liveroom[i['room']]
                 color = as_color[i['room']]
                 time = i['time']
                 desc = ''
                 s_type = int(i['type'])
                 if s_type == 0:
                     desc = actor + live_type[s_type]
+                elif s_type == 2:
+                    desc = live_type[s_type]
+                elif s_type == 3:
+                    desc += actor + as_e2c[i['partner']] + live_type[s_type]
                 else:
-                    if s_type == 2:
-                        desc = live_type[s_type]
-                    else:
-                        if s_type == 3:
-                            desc += actor + as_e2c[i['partner']] + live_type[s_type]
-                        else:
-                            desc = live_type[s_type]
+                    desc = live_type[s_type]
                 desc += " - " + i['desc']
                 s_data.append({
                     'title': desc,
                     'url': url,
                     'color': color,
                     'start': time,
+                    'live_type': s_type,
+                    'live_room': as_e2c[i['room']],
+                    'pure_title': i['desc'],
+                    'fullname': as_e2bn[i['room']],
+                    'space': as_space[i['room']]
+                    # todo
+                    # 团播双播属性传递
                 })
             return {
                 "code": 0,
