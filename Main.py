@@ -207,8 +207,12 @@ class getASWeeklySchedule(Resource):
 
 class getPubArchiveList(Resource):
     def get(self):
-        data = json.loads(requests.get("https://member.bilibili.com/x/web/archives",headers=bili_headers,cookies=bili_cookie).text)
-        return data["data"]["arc_audits"]
+        params = {
+            'pn': request.args.get('pn'),
+            'ps': request.args.get('ps'),
+        }
+        data = json.loads(requests.get("https://member.bilibili.com/x/web/archives",headers=bili_headers,cookies=bili_cookie,params=params).text)
+        return data["data"]
 
 class getVersion(Resource):
     def get(self):
