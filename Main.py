@@ -37,6 +37,9 @@ bili_headers = {
 bili_cookie = {}
 
 def importBiliCookie():
+    """
+    加载基本鉴权信息，调用API使用
+    """
     global bili_cookie
     if os.path.exists('user_data.json'):
         with open('user_data.json', 'r') as f:
@@ -57,6 +60,12 @@ def importBiliCookie():
 
 
 def getBiliUserInfo(bili_uid):
+    """
+    获取用户信息，缓存在本地
+    :param bili_uid: UID
+    :return: 从bili获取的原JSON
+    """
+    # 缓存在本地，24小时刷新时限
     if os.path.exists('bili_user_' + bili_uid + '.json') and (
             datetime.now().timestamp() - os.stat('bili_user_' + bili_uid + '.json').st_mtime <= 60 * 60 * 24):
         data = json.load(open('bili_user_' + bili_uid + '.json', 'r'))
@@ -105,6 +114,10 @@ def getBiliUserInfo(bili_uid):
 
 class getBiliList(Resource):
     def get(self):
+        """
+        获取/刷新 dynamic_config中的用户的信息
+        :return: 包含头像的信息
+        """
         if not os.path.exists('dynamic_config.json'):
             open('dynamic_config.json', 'w').close()
         bili_dynamic = json.loads(open('dynamic_config.json', 'r', encoding='utf-8').read())
@@ -129,10 +142,16 @@ class getBiliList(Resource):
 
 class getBiliDynamic(Resource):
     def get(self):
+        """
+        获取动态信息
+        request-param uid: 要获取的用户的UID
+        request-param offset: 动态页数（偏置）
+        """
         uid = request.args.get("uid")
         offset = ""
         if request.args.get("offset"):
             offset = request.args.get("offset")
+        # 仅接受以下几个用户
         a_uid = ['547510303', '672353429', '672346917', '672328094', '672342685', '703007996', '3493085336046382']
         if uid in a_uid:
             params = {
