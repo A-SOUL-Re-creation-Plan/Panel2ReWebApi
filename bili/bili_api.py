@@ -14,29 +14,31 @@ def _is_chinese(word):
     return False
 
 
-class ArchiveInfo:
-    # bvid
-    bvid = str()
-    # 标题
-    title = '标题'
-    # 转载 or 原创
-    copyright = '未知'
-    # 简介
-    description = ''
-    # 封面链接
-    picture = None
-    # 发布时间 秒级时间戳
-    pubdate = 0
-    # 投稿时间 秒级时间戳
-    ctime = 0
-    # 审核信息
-    state_desc = ''
-    # 状态代码
-    state = 0
-    # 转载
-    source = ''
-    # 标签
-    tag = ''
+def ArchiveInfo():
+    return {
+        # bvid
+        "bvid": str(),
+        # 标题
+        "title": '标题',
+        # 转载 or 原创
+        "copyright": '未知',
+        # 简介
+        "description": '',
+        # 封面链接
+        "picture": None,
+        # 发布时间 秒级时间戳
+        "pubdate": 0,
+        # 投稿时间 秒级时间戳
+        "ctime": 0,
+        # 审核信息
+        "state_desc": '',
+        # 状态代码
+        "state": 0,
+        # 转载
+        "source": '',
+        # 标签
+        "tag": '',
+    }
 
 
 # bvid相关
@@ -74,9 +76,15 @@ class BiliApis(object):
         if resp.json().get("code") != 0:
             raise Exception(resp.json().get("message"))
         arc_items = list()
-        for item in got.get("arc_audits"):
-            arc_items.append(self.read_archive(item))
-        return arc_items
+        page_info = resp.json().get('data').get('page')
+        if int(page)*int(size) - page_info['count'] < int(size) :
+            for item in got.get("arc_audits"):
+                arc_items.append(self.read_archive(item['Archive']))
+        data: dict = {
+            "page": page_info,
+            "items": arc_items
+        }
+        return data
 
     def get_rejection_reason(self, bvid) -> str:
         """
@@ -100,17 +108,16 @@ class BiliApis(object):
         转存稿件信息
         """
         info = ArchiveInfo()
-        archive: dict = archive.get("Archive")
-        info.bvid = archive.get("bvid")
-        info.title = archive.get("title")
-        info.picture = archive.get("cover")
-        info.tag = archive.get("tag")
-        info.copyright = copyright_dict[archive.get("copyright")]
-        info.description = archive.get("desc")
-        info.state = archive.get("state")
-        info.state_desc = archive.get("state_desc")
-        info.source = archive.get("source")
-        info.ctime = archive.get("ctime")
+        info['bvid'] = archive.get("bvid")
+        info['title'] = archive.get("title")
+        info['picture'] = archive.get("cover")
+        info['tag'] = archive.get("tag")
+        info['copyright'] = copyright_dict[archive.get("copyright")]
+        info['description'] = archive.get("desc")
+        info['state'] = archive.get("state")
+        info['state_desc'] = archive.get("state_desc")
+        info['source'] = archive.get("source")
+        info['ctime'] = archive.get("ctime")
         return info
 
     def get_member_info(self, bvid: str) -> ArchiveInfo:

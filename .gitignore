@@ -2,6 +2,6 @@
 .idea
 .venv
 cache
-bili_user_*
+*bili_user_*
 cookies.txt
 user_data.json

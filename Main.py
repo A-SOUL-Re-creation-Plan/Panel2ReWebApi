@@ -9,12 +9,12 @@ import requests
 from bili.bili_wbi import getWBI
 from datetime import datetime
 from as_config import *
+from bili.bili_api import BiliApis
 
 app = Flask(__name__)
 CORS(app)
 api = Api(app)
-version = 'V0.0.1_006b9ba6'
-base_URL = 'http://127.0.0.1:3007'
+version = 'V0.0.1_f639646'
 
 bili_headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.1.4.514 Safari/537.36",
@@ -36,7 +36,7 @@ bili_headers = {
 
 bili_cookie = dict()
 related_user_id = list()
-
+bili_apis = None
 
 def importBiliCookie():
     """
@@ -236,13 +236,15 @@ class GetASWeeklySchedule(Resource):
 
 class GetPubArchiveList(Resource):
     def get(self):
-        params = {
-            'pn': request.args.get('pn'),
-            'ps': request.args.get('ps'),
-        }
-        data = json.loads(requests.get("https://member.bilibili.com/x/web/archives",headers=bili_headers,cookies=bili_cookie,params=params).text)
-        return data["data"]
+        pn = request.args.get('pn')
+        ps = request.args.get('ps')
+        status = request.args.get('status')
+        return bili_apis.get_member_video_list(page=pn,size=ps,targer_type=status)
 
+class GetPubArchiveDetail(Resource):
+    def get(self):
+        bvid = request.args.get('bvid')
+        return bili_apis.get_member_info(bvid=bvid)
 
 class GetVersion(Resource):
     def get(self):
@@ -254,15 +256,17 @@ api.add_resource(GetVersion, '/version')
 api.add_resource(GetBiliDynamic, '/bili_dynamics')
 api.add_resource(GetASWeeklySchedule, '/weekly_schedule')
 api.add_resource(GetPubArchiveList, '/bili_archives')
+api.add_resource(GetPubArchiveDetail, '/bili_archives_detail')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
 
 @app.route('/')
 def index():
-    return 'Panel2Re is running.\nBackend version: %s' % version
+    return 'Panel2Re is running.\n%s<br/>It works, but why?' % version
 
 
 if __name__ == '__main__':
     importBiliCookie()
+    bili_apis = BiliApis(headers=bili_headers,cookies=bili_cookie)
     app.run(host='0.0.0.0', port=3007, debug=True)
