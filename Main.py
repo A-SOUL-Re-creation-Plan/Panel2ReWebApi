@@ -34,10 +34,15 @@ bili_headers = {
     "Connection": "keep-alive"
 }
 
-bili_cookie = {}
+bili_cookie = dict()
+related_user_id = list()
+
 
 def importBiliCookie():
-    global bili_cookie
+    """
+    加载基本鉴权信息，调用API使用
+    """
+    global bili_cookie, related_user_id
     if os.path.exists('user_data.json'):
         with open('user_data.json', 'r') as f:
             bili_cookie = json.loads(f.read())
@@ -54,12 +59,25 @@ def importBiliCookie():
     else:
         print("Cookie file not found")
         sys.exit(0)
+    # 加载受信成员ID
+    with open('dynamic_config.json', 'r', encoding='utf-8') as f:
+        bili_dynamic = json.loads(f.read())
+        for item in bili_dynamic:
+            related_user_id.append(item.get('bili_uid'))
 
 
 def getBiliUserInfo(bili_uid):
-    if os.path.exists('bili_user_' + bili_uid + '.json') and (
-            datetime.now().timestamp() - os.stat('bili_user_' + bili_uid + '.json').st_mtime <= 60 * 60 * 24):
-        data = json.load(open('bili_user_' + bili_uid + '.json', 'r'))
+    """
+    获取用户信息，缓存在本地
+    :param bili_uid: UID
+    :return: 从bili获取的原JSON
+    """
+    if bili_uid not in related_user_id:
+        raise NotImplementedError('ERR_NOT_A-SOUL_RELATED')
+    # 缓存在本地，24小时刷新时限
+    if os.path.exists('./cache/bili_user_' + bili_uid + '.json') and (
+            datetime.now().timestamp() - os.stat('./cache/bili_user_' + bili_uid + '.json').st_mtime <= 60 * 60 * 24):
+        data = json.load(open('./cache/bili_user_' + bili_uid + '.json', 'r'))
     else:
         params = {
             'mid': bili_uid
@@ -67,7 +85,7 @@ def getBiliUserInfo(bili_uid):
         params = getWBI(params)
         data = requests.get('https://api.bilibili.com/x/space/wbi/acc/info', params=params,
                             headers=bili_headers, cookies=bili_cookie).json()
-        with open('bili_user_' + bili_uid + '.json', 'w') as f:
+        with open('./cache/bili_user_' + bili_uid + '.json', 'w') as f:
             json.dump(data, f)
             f.close()
     return data
@@ -103,8 +121,13 @@ def getBiliUserInfo(bili_uid):
 #             return "FAILED", 500
 
 
-class getBiliList(Resource):
+class GetBiliList(Resource):
     def get(self):
+        """
+        获取/刷新 dynamic_config中的用户的信息
+        目前作用仅为刷新头像
+        :return: 包含头像的信息
+        """
         if not os.path.exists('dynamic_config.json'):
             open('dynamic_config.json', 'w').close()
         bili_dynamic = json.loads(open('dynamic_config.json', 'r', encoding='utf-8').read())
@@ -127,14 +150,19 @@ class getBiliList(Resource):
         return bili_dynamic
 
 
-class getBiliDynamic(Resource):
+class GetBiliDynamic(Resource):
     def get(self):
+        """
+        获取动态信息
+        request-param uid: 要获取的用户的UID
+        request-param offset: 动态页数（偏置）
+        """
         uid = request.args.get("uid")
         offset = ""
         if request.args.get("offset"):
             offset = request.args.get("offset")
-        a_uid = ['547510303', '672353429', '672346917', '672328094', '672342685', '703007996', '3493085336046382']
-        if uid in a_uid:
+        # 仅接受以下几个用户
+        if uid in related_user_id:
             params = {
                 'host_mid': uid,
                 'offset': offset
@@ -152,7 +180,7 @@ class getBiliDynamic(Resource):
             }, 403
 
 
-class getASWeeklySchedule(Resource):
+class GetASWeeklySchedule(Resource):
     def get(self):
         if not os.path.exists('schedule_table.json'):
             open('schedule_table.json', 'w').close()
@@ -205,7 +233,8 @@ class getASWeeklySchedule(Resource):
                 "data": s_data
             }, 200
 
-class getPubArchiveList(Resource):
+
+class GetPubArchiveList(Resource):
     def get(self):
         params = {
             'pn': request.args.get('pn'),
@@ -214,16 +243,17 @@ class getPubArchiveList(Resource):
         data = json.loads(requests.get("https://member.bilibili.com/x/web/archives",headers=bili_headers,cookies=bili_cookie,params=params).text)
         return data["data"]
 
-class getVersion(Resource):
+
+class GetVersion(Resource):
     def get(self):
         return version
 
 
-api.add_resource(getBiliList, '/bili_dynamic')
-api.add_resource(getVersion, '/version')
-api.add_resource(getBiliDynamic, '/bili_dynamics')
-api.add_resource(getASWeeklySchedule, '/weekly_schedule')
-api.add_resource(getPubArchiveList, '/bili_archives')
+api.add_resource(GetBiliList, '/bili_dynamic')
+api.add_resource(GetVersion, '/version')
+api.add_resource(GetBiliDynamic, '/bili_dynamics')
+api.add_resource(GetASWeeklySchedule, '/weekly_schedule')
+api.add_resource(GetPubArchiveList, '/bili_archives')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
