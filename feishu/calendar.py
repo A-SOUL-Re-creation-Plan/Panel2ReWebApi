@@ -9,7 +9,6 @@ def get_timestamp():
     """
     return int(time.time())
 
-
 class TenantAccessToken(object):
     def __init__(self, app_id, app_secret):
         self._app_id = app_id
@@ -44,8 +43,6 @@ class TenantAccessToken(object):
         code = response_dict.get("code", -1)
         if code != 0:
             raise LarkException(code=code, msg=response_dict.get("msg"))
-
-
 class FeishuCalendar(object):
     def __init__(self, feishu_app: TenantAccessToken, calendar_id):
         self.app = feishu_app

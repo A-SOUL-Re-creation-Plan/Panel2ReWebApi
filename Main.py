@@ -1,15 +1,18 @@
 import json
 import os
 import sys
+import time
 
 from flask import Flask, request
 from flask_restful import Api, Resource
 from flask_cors import CORS
 import requests
+from loguru import logger
 from bili.bili_wbi import getWBI
-from datetime import datetime
+from datetime import datetime, timedelta
 from as_config import *
 from bili.bili_api import BiliApis
+from feishu.calendar import TenantAccessToken, FeishuCalendar
 
 app = Flask(__name__)
 CORS(app)
@@ -38,6 +41,23 @@ bili_cookie = dict()
 related_user_id = list()
 bili_apis = None
 
+feishu_app = None
+
+
+def loadLarkBotConfig():
+    global feishu_app
+    if (os.path.exists('lark_bot.json')):
+        with open('lark_bot.json', 'r') as f:
+            bot_conf = json.load(f)
+            app_id = bot_conf.get('app_id')
+            app_secret = bot_conf.get('app_secret')
+            feishu_app = TenantAccessToken(app_id, app_secret)
+            logger.info("飞书AppInfo实例化完成")
+            f.close()
+    else:
+        logger.warning("飞书机器人凭据读取失败，相关功能可能出现异常。")
+
+
 def importBiliCookie():
     """
     加载基本鉴权信息，调用API使用
@@ -47,17 +67,17 @@ def importBiliCookie():
         with open('user_data.json', 'r') as f:
             bili_cookie = json.loads(f.read())
             bili_cookie = bili_cookie[list(bili_cookie.keys())[0]]
-            print("Import from JSON")
+            logger.info("从JSON文件导入cookies")
     elif os.path.exists('cookies.txt'):
         with open('cookies.txt', 'r') as f:
-            print("Import from raw cookie string")
+            logger.info("从原始raw字符串导入cookies")
             cookie_raw = f.read()
             cookie_raw = cookie_raw.split('; ')
             for cookie in cookie_raw:
                 cookie = cookie.split('=')
                 bili_cookie[cookie[0]] = cookie[1]
     else:
-        print("Cookie file not found")
+        logger.error("找不到符合的Cookies文件")
         sys.exit(0)
     # 加载受信成员ID
     with open('dynamic_config.json', 'r', encoding='utf-8') as f:
@@ -239,18 +259,33 @@ class GetPubArchiveList(Resource):
         pn = request.args.get('pn')
         ps = request.args.get('ps')
         status = request.args.get('status')
-        return bili_apis.get_member_video_list(page=pn,size=ps,targer_type=status)
+        return bili_apis.get_member_video_list(page=pn, size=ps, targer_type=status)
+
+class GetFeishuOrgCalendarTest(Resource):
+    def get(self):
+        '''
+        飞书机器人关联组织公共日历事件列表获取
+        request-config lark_bot.json:飞书自建机器人的app_id与app_secret键值
+        '''
+        calendar_id = json.loads(open('lark_bot.json','r').read()).get('lark_calendarID')
+        now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        firstDay = str(int((now - timedelta(days=now.weekday())).timestamp()))
+        endDay = str(int((now + timedelta(days=6-now.weekday())).timestamp()))
+        lark_cal = FeishuCalendar(feishu_app,calendar_id).get_event_list(start_timestamp=firstDay, end_timestamp=endDay)
+        return lark_cal
 
 class GetPubArchiveDetail(Resource):
     def get(self):
         bvid = request.args.get('bvid')
         return bili_apis.get_member_info(bvid=bvid)
 
+
 class GetVersion(Resource):
     def get(self):
         return version
-    
-class GetFailMsg(Resource):
+
+
+class GetPubArchiveFailMsg(Resource):
     def get(self):
         return {
             'msg': bili_apis.get_rejection_reason(bvid=request.args.get('bvid'))
@@ -263,7 +298,8 @@ api.add_resource(GetBiliDynamic, '/bili_dynamics')
 api.add_resource(GetASWeeklySchedule, '/weekly_schedule')
 api.add_resource(GetPubArchiveList, '/bili_archives')
 api.add_resource(GetPubArchiveDetail, '/bili_archives_detail')
-api.add_resource(GetFailMsg, '/bili_xcode_msg')
+api.add_resource(GetPubArchiveFailMsg, '/bili_xcode_msg')
+api.add_resource(GetFeishuOrgCalendarTest, '/lark_calendar_test')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
@@ -275,5 +311,6 @@ def index():
 
 if __name__ == '__main__':
     importBiliCookie()
-    bili_apis = BiliApis(headers=bili_headers,cookies=bili_cookie)
+    loadLarkBotConfig()
+    bili_apis = BiliApis(headers=bili_headers, cookies=bili_cookie)
     app.run(host='0.0.0.0', port=3007, debug=True)
