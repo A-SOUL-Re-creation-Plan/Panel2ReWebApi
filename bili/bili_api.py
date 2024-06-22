@@ -90,7 +90,11 @@ class BiliApis(object):
         page_info = resp.json().get('data').get('page')
         if got.get("arc_audits") is not None:
             for item in got.get("arc_audits"):
-                arc_items.append(self.read_archive(item['Archive']))
+                archive = item['Archive']
+                for i, v in enumerate(item['Videos']):
+                    if v['reject_reason'] != '':
+                        archive['reject_reason']+="\nP{p_num}-{r}".format(p_num=i+1,r=v['reject_reason'])
+                arc_items.append(self.read_archive(archive))
         data: dict = {
             "page": page_info,
             "items": arc_items
@@ -153,6 +157,7 @@ class BiliApis(object):
         if resp.json().get("code") != 0:
             raise Exception(resp.json().get("message"))
         archive: dict = got.get("archive")
+        print(archive)
         return self.read_archive(archive)
 
     def get_liveroom_info(self, room) -> dict:
