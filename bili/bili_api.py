@@ -23,11 +23,11 @@ def ArchiveInfo():
         # 转载 or 原创
         "copyright": '未知',
         # 简介
-        "description": '',
+        "desc": '',
         # 封面链接
-        "picture": None,
+        "cover": None,
         # 发布时间 秒级时间戳
-        "pubdate": 0,
+        "ptime": 0,
         # 投稿时间 秒级时间戳
         "ctime": 0,
         # 审核信息
@@ -38,6 +38,17 @@ def ArchiveInfo():
         "source": '',
         # 标签
         "tag": '',
+        # 以下是api中新增的几项，用于描述特殊拒稿
+        # 观察发现所有稿件均有以下项
+        # 但无问题的稿件这些项为空字符串
+        # 不同于转码失败的拒稿，似乎只有侵权才有这些内容
+        "reject_reason": '',
+        "modify_advise": '',
+        "problem_description": '',
+        "problem_description_title": '',
+        # 发现该项可以鉴别类型
+        # 0-过审核 1-审核中 2-退回 3-撞车或侵权 4-转码问题使用另一接口
+        "state_panel": 0
     }
 
 
@@ -61,7 +72,7 @@ class BiliApis(object):
         self.cookies = cookies
         self.headers = headers
 
-    def get_member_video_list(self, page: int = 1, size: int = 10, targer_type: str = 'pubed,not_pubed,is_pubing') -> list[ArchiveInfo]:
+    def get_member_video_list(self, page: int = 1, size: int = 10, targer_type: str = 'pubed,not_pubed,is_pubing'):
         """
         查询稿件列表
         :param page: 页
@@ -103,24 +114,30 @@ class BiliApis(object):
         return ';'.join(i.get('xcode_fail_msg') for i in data)
 
     @staticmethod
-    def read_archive(archive: dict) -> ArchiveInfo:
+    def read_archive(archive: dict):
         """
         转存稿件信息
         """
         info = ArchiveInfo()
         info['bvid'] = archive.get("bvid")
         info['title'] = archive.get("title")
-        info['picture'] = archive.get("cover")
+        info['cover'] = archive.get("cover")
         info['tag'] = archive.get("tag")
         info['copyright'] = copyright_dict[archive.get("copyright")]
-        info['description'] = archive.get("desc")
+        info['desc'] = archive.get("desc")
         info['state'] = archive.get("state")
         info['state_desc'] = archive.get("state_desc")
         info['source'] = archive.get("source")
         info['ctime'] = archive.get("ctime")
+        info['ptime'] = archive.get('ptime')
+        info['reject_reason'] = archive.get('reject_reason')
+        info['modify_advise'] = archive.get('modify_advise')
+        info['problem_description'] = archive.get('problem_description')
+        info['problem_description_title'] = archive.get('problem_description_title')
+        info['state_panel'] = archive.get('state_panel')
         return info
 
-    def get_member_info(self, bvid: str) -> ArchiveInfo:
+    def get_member_info(self, bvid: str):
         """
         获取单个稿件信息
         :param bvid: BVID

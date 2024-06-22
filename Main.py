@@ -249,6 +249,12 @@ class GetPubArchiveDetail(Resource):
 class GetVersion(Resource):
     def get(self):
         return version
+    
+class GetFailMsg(Resource):
+    def get(self):
+        return {
+            'msg': bili_apis.get_rejection_reason(bvid=request.args.get('bvid'))
+        }
 
 
 api.add_resource(GetBiliList, '/bili_dynamic')
@@ -257,6 +263,7 @@ api.add_resource(GetBiliDynamic, '/bili_dynamics')
 api.add_resource(GetASWeeklySchedule, '/weekly_schedule')
 api.add_resource(GetPubArchiveList, '/bili_archives')
 api.add_resource(GetPubArchiveDetail, '/bili_archives_detail')
+api.add_resource(GetFailMsg, '/bili_xcode_msg')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
