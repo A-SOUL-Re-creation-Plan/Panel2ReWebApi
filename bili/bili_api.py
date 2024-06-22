@@ -88,7 +88,7 @@ class BiliApis(object):
             raise Exception(resp.json().get("message"))
         arc_items = list()
         page_info = resp.json().get('data').get('page')
-        if int(page)*int(size) - page_info['count'] < int(size) :
+        if got.get("arc_audits") is not None:
             for item in got.get("arc_audits"):
                 arc_items.append(self.read_archive(item['Archive']))
         data: dict = {
