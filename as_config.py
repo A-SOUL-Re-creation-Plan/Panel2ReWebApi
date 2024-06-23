@@ -37,3 +37,9 @@ as_space = {
     'eileen': '672342685',
     'asoul': '703007996'
 }
+
+lark_cal_color = {
+    '#f14ba9': 'diana',
+    '#616ae5': 'eileen',
+    '#f76964': 'bella'
+}

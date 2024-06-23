@@ -264,7 +264,7 @@ class GetPubArchiveList(Resource):
         status = request.args.get('status')
         return bili_apis.get_member_video_list(page=pn, size=ps, targer_type=status)
 
-class GetFeishuOrgCalendarTest(Resource):
+class GetFeishuOrgCalendarList(Resource):
     def get(self):
         '''
         飞书机器人关联组织公共日历事件列表获取
@@ -274,18 +274,21 @@ class GetFeishuOrgCalendarTest(Resource):
         calendar_id = json.loads(open('lark_bot.json','r').read()).get('lark_calendarID')
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         firstDay = str(int((now - timedelta(days=now.weekday())).timestamp()))
+        # firstDay = str(int((now - timedelta(days=now.weekday()) - timedelta(days=14)).timestamp())) # Only for debug in Monday
         endDay = str(int((now + timedelta(days=6-now.weekday())).timestamp()))
         lark_calRaw = FeishuCalendar(feishu_app,calendar_id).get_event_list(start_timestamp=firstDay, end_timestamp=endDay)
         '''
         提取API元数据并返回
         '''
         for i in lark_calRaw:
+            c = ColorConverter.int32ToHex(i.get('color'))
             lark_cal.append({
-                'color': ColorConverter.int32ToHex(i.get('color')),
+                'color': c,
                 'desc': i.get('description').replace('\n',''),
                 'title': i.get('summary'),
                 'startTime': i.get('start_time').get('timestamp'),
                 'endTime': i.get('end_time').get('timestamp'),
+                'live_room': as_liveroom.get(lark_cal_color.get(c))
             })
         return lark_cal
 
@@ -314,7 +317,7 @@ api.add_resource(GetASWeeklySchedule, '/weekly_schedule')
 api.add_resource(GetPubArchiveList, '/bili_archives')
 api.add_resource(GetPubArchiveDetail, '/bili_archives_detail')
 api.add_resource(GetPubArchiveFailMsg, '/bili_xcode_msg')
-api.add_resource(GetFeishuOrgCalendarTest, '/lark_calendar_test')
+api.add_resource(GetFeishuOrgCalendarList, '/lark_calendar_list')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
