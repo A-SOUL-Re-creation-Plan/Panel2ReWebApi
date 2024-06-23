@@ -7,17 +7,19 @@ from flask import Flask, request
 from flask_restful import Api, Resource
 from flask_cors import CORS
 import requests
-from loguru import logger
-from bili.bili_wbi import getWBI
 from datetime import datetime, timedelta
-from as_config import *
+from loguru import logger
+
+from bili.bili_wbi import getWBI
 from bili.bili_api import BiliApis
+from as_config import *
 from feishu.calendar import TenantAccessToken, FeishuCalendar
+from utils import ColorConverter
 
 app = Flask(__name__)
 CORS(app)
 api = Api(app)
-version = 'V0.0.1_f639646'
+version = 'V0.0.1_51e2b13'
 
 bili_headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.1.4.514 Safari/537.36",
@@ -54,6 +56,7 @@ def loadLarkBotConfig():
             feishu_app = TenantAccessToken(app_id, app_secret)
             logger.info("飞书AppInfo实例化完成")
             f.close()
+        return
     else:
         logger.warning("飞书机器人凭据读取失败，相关功能可能出现异常。")
 
@@ -267,11 +270,23 @@ class GetFeishuOrgCalendarTest(Resource):
         飞书机器人关联组织公共日历事件列表获取
         request-config lark_bot.json:飞书自建机器人的app_id与app_secret键值
         '''
+        lark_cal = list()
         calendar_id = json.loads(open('lark_bot.json','r').read()).get('lark_calendarID')
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         firstDay = str(int((now - timedelta(days=now.weekday())).timestamp()))
         endDay = str(int((now + timedelta(days=6-now.weekday())).timestamp()))
-        lark_cal = FeishuCalendar(feishu_app,calendar_id).get_event_list(start_timestamp=firstDay, end_timestamp=endDay)
+        lark_calRaw = FeishuCalendar(feishu_app,calendar_id).get_event_list(start_timestamp=firstDay, end_timestamp=endDay)
+        '''
+        提取API元数据并返回
+        '''
+        for i in lark_calRaw:
+            lark_cal.append({
+                'color': ColorConverter.int32ToHex(i.get('color')),
+                'desc': i.get('description').replace('\n',''),
+                'title': i.get('summary'),
+                'startTime': i.get('start_time').get('timestamp'),
+                'endTime': i.get('end_time').get('timestamp'),
+            })
         return lark_cal
 
 class GetPubArchiveDetail(Resource):
