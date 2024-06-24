@@ -87,7 +87,7 @@ class BiliApis(object):
         if resp.json().get("code") != 0:
             raise Exception(resp.json().get("message"))
         arc_items = list()
-        page_info = resp.json().get('data').get('page')
+        page_info = got.get('page')
         if got.get("arc_audits") is not None:
             for item in got.get("arc_audits"):
                 archive = item['Archive']
@@ -97,6 +97,7 @@ class BiliApis(object):
                 arc_items.append(self.read_archive(archive))
         data: dict = {
             "page": page_info,
+            "status": got.get('class'),
             "items": arc_items
         }
         return data
