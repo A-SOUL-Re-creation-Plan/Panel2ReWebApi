@@ -1,6 +1,5 @@
 import time
 import requests
-import json
 from loguru import logger
 
 def get_timestamp():
@@ -16,13 +15,6 @@ class TenantAccessToken(object):
         self._app_secret = app_secret
         self._tenant_access_token = str()
         self._timestamp = int(0)
-        try:
-            with open('cache/lark_tat.json', 'r') as f:
-                tat = json.load(f)
-                self._tenant_access_token = tat.get('tat')
-                self._timestamp = tat.get('ts')
-        except:
-            open('cache/lark_tat.json','w').write('{}')
 
     @property
     def tenant_access_token(self):
@@ -41,12 +33,6 @@ class TenantAccessToken(object):
         self.check_error_response(response)
         self._tenant_access_token = response.json().get("tenant_access_token")
         self._timestamp = get_timestamp()
-        with open('cache/lark_tat.json', 'w') as f:
-            cacheObj = {
-                'tat': self._tenant_access_token,
-                'ts': self._timestamp
-            }
-            f.write(json.dumps(cacheObj))
 
     @staticmethod
     def check_error_response(resp):
