@@ -274,22 +274,42 @@ class GetFeishuOrgCalendarList(Resource):
         calendar_id = json.loads(open('lark_bot.json','r').read()).get('lark_calendarID')
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         firstDay = str(int((now - timedelta(days=now.weekday())).timestamp()))
-        # firstDay = str(int((now - timedelta(days=now.weekday()) - timedelta(days=14)).timestamp())) # Only for debug in Monday
-        endDay = str(int((now + timedelta(days=6-now.weekday())).timestamp()))
+        # firstDay = str(int((now - timedelta(days=now.weekday()) - timedelta(days=50)).timestamp())) # For Debug
+        endDay = str(int((now + timedelta(days=7-now.weekday())).timestamp()))
         lark_calRaw = FeishuCalendar(feishu_app,calendar_id).get_event_list(start_timestamp=firstDay, end_timestamp=endDay)
         '''
         提取API元数据并返回
         '''
         for i in lark_calRaw:
-            c = ColorConverter.int32ToHex(i.get('color'))
-            lark_cal.append({
+            a = lark_cal_color.get(ColorConverter.int32ToHex(i.get('color')))
+            c = as_color.get(a)
+            s = time.strftime("%Y-%m-%dT%H:%M:%S",time.localtime(int(i.get('start_time').get('timestamp'))))
+            e = time.strftime("%Y-%m-%dT%H:%M:%S",time.localtime(int(i.get('end_time').get('timestamp'))))
+            lark_cal_item = {
                 'color': c,
-                'desc': i.get('description').replace('\n',''),
+                'live_title': i.get('description').replace('\n',''),
                 'title': i.get('summary'),
-                'startTime': i.get('start_time').get('timestamp'),
-                'endTime': i.get('end_time').get('timestamp'),
-                'live_room': as_liveroom.get(lark_cal_color.get(c))
-            })
+                'start': s,
+                'end': e,
+                'url': 'https://live.bilibili.com/'+as_liveroom.get(a),
+                'live_owner': as_e2c.get(a),
+                'live_owner_room': as_liveroom.get(a),
+                'live_owner_space': as_space.get(a),
+                'live_owner_full': as_e2bn.get(a)
+            }
+            if "双播" in i.get('summary') or '&' in i.get('summary'):
+                name1, name2 = i.get('summary')[0:2], i.get('summary')[3:5]
+                if(name1 == as_e2c.get(a)):
+                    partner = as_c2e.get(name2)
+                else:
+                    partner = as_c2e.get(name1)
+                lark_cal_item['partner'] = {
+                    'partner_short': as_e2c.get(partner),
+                    'partner_full': as_e2bn.get(partner),
+                    'partner_space': as_space.get(partner),
+                    'partner_liveroom': as_liveroom.get(partner)
+                }
+            lark_cal.append(lark_cal_item)
         return lark_cal
 
 class GetPubArchiveDetail(Resource):

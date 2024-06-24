@@ -6,6 +6,14 @@ as_e2c = {
     'asoul': 'A-SOUL'
 }
 
+as_c2e = {
+    '向晚': 'ava',
+    '贝拉': 'bella',
+    '嘉然': 'diana',
+    '乃琳': 'eileen',
+    'A-SOUL': 'asoul'
+}
+
 as_e2bn = {
     'ava': '向晚大魔王',
     'bella': '贝拉kira',

@@ -1,7 +1,7 @@
 import time
 import requests
 import json
-
+from loguru import logger
 
 def get_timestamp():
     """
