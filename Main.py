@@ -3,17 +3,19 @@ import os
 import sys
 import time
 
-from flask import Flask, request
+from flask import Flask, request, redirect, Response
 from flask_restful import Api, Resource
 from flask_cors import CORS
 import requests
 from datetime import datetime, timedelta
 from loguru import logger
+from urllib.parse import quote
 
 from bili.bili_wbi import getWBI
 from bili.bili_api import BiliApis
 from as_config import *
 from feishu.calendar import TenantAccessToken, FeishuCalendar
+from feishu.user import User
 from utils import ColorConverter
 
 app = Flask(__name__)
@@ -44,21 +46,25 @@ related_user_id = list()
 bili_apis = None
 
 feishu_app = None
+feishu_app_id = str()
+feishu_userAuthApiAddr = str()
 
 
 def loadLarkBotConfig():
-    global feishu_app
+    global feishu_app, feishu_app_id, feishu_userAuthApiAddr
     if (os.path.exists('lark_bot.json')):
         with open('lark_bot.json', 'r') as f:
             bot_conf = json.load(f)
             app_id = bot_conf.get('app_id')
+            feishu_app_id = app_id
             app_secret = bot_conf.get('app_secret')
+            feishu_userAuthApiAddr = bot_conf.get('lark_userCallbackURI')
             feishu_app = TenantAccessToken(app_id, app_secret)
             logger.info("飞书AppInfo实例化完成")
             f.close()
         return
     else:
-        logger.warning("飞书机器人凭据读取失败，相关功能可能出现异常。")
+        logger.warning("飞书企业自建应用凭据读取失败，相关功能可能出现异常。")
 
 
 def importBiliCookie():
@@ -264,6 +270,7 @@ class GetPubArchiveList(Resource):
         status = request.args.get('status')
         return bili_apis.get_member_video_list(page=pn, size=ps, targer_type=status)
 
+
 class GetFeishuOrgCalendarList(Resource):
     def get(self):
         '''
@@ -271,27 +278,28 @@ class GetFeishuOrgCalendarList(Resource):
         request-config lark_bot.json:飞书自建机器人的app_id与app_secret键值
         '''
         lark_cal = list()
-        calendar_id = json.loads(open('lark_bot.json','r').read()).get('lark_calendarID')
+        calendar_id = json.loads(open('lark_bot.json', 'r').read()).get('lark_calendarID')
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         firstDay = str(int((now - timedelta(days=now.weekday())).timestamp()))
         # firstDay = str(int((now - timedelta(days=now.weekday()) - timedelta(days=50)).timestamp())) # For Debug
-        endDay = str(int((now + timedelta(days=7-now.weekday())).timestamp()))
-        lark_calRaw = FeishuCalendar(feishu_app,calendar_id).get_event_list(start_timestamp=firstDay, end_timestamp=endDay)
+        endDay = str(int((now + timedelta(days=7 - now.weekday())).timestamp()))
+        lark_calRaw = FeishuCalendar(feishu_app, calendar_id).get_event_list(start_timestamp=firstDay,
+                                                                             end_timestamp=endDay)
         '''
         提取API元数据并返回
         '''
         for i in lark_calRaw:
             a = lark_cal_color.get(ColorConverter.int32ToHex(i.get('color')))
             c = as_color.get(a)
-            s = time.strftime("%Y-%m-%dT%H:%M:%S",time.localtime(int(i.get('start_time').get('timestamp'))))
-            e = time.strftime("%Y-%m-%dT%H:%M:%S",time.localtime(int(i.get('end_time').get('timestamp'))))
+            s = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(int(i.get('start_time').get('timestamp'))))
+            e = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(int(i.get('end_time').get('timestamp'))))
             lark_cal_item = {
                 'color': c,
-                'live_title': i.get('description').replace('\n',''),
+                'live_title': i.get('description').replace('\n', ''),
                 'title': i.get('summary'),
                 'start': s,
                 'end': e,
-                'url': 'https://live.bilibili.com/'+as_liveroom.get(a),
+                'url': 'https://live.bilibili.com/' + as_liveroom.get(a),
                 'live_owner': as_e2c.get(a),
                 'live_owner_room': as_liveroom.get(a),
                 'live_owner_space': as_space.get(a),
@@ -299,7 +307,7 @@ class GetFeishuOrgCalendarList(Resource):
             }
             if "双播" in i.get('summary') or '&' in i.get('summary'):
                 name1, name2 = i.get('summary')[0:2], i.get('summary')[3:5]
-                if(name1 == as_e2c.get(a)):
+                if (name1 == as_e2c.get(a)):
                     partner = as_c2e.get(name2)
                 else:
                     partner = as_c2e.get(name1)
@@ -311,6 +319,7 @@ class GetFeishuOrgCalendarList(Resource):
                 }
             lark_cal.append(lark_cal_item)
         return lark_cal
+
 
 class GetPubArchiveDetail(Resource):
     def get(self):
@@ -330,6 +339,44 @@ class GetPubArchiveFailMsg(Resource):
         }
 
 
+class GetFeishuUserAuthURI(Resource):
+    def get(self):
+        return_uri = 'http://127.0.0.1:1211/api/lark_user_callback' if not request.headers.get(
+            'Cf-Connecting-Ip') else feishu_userAuthApiAddr
+        return_uri = quote(return_uri, safe='')
+        uri = 'https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=' + feishu_app_id + '&redirect_uri=' + return_uri
+        return {
+            'u_auth_uri': uri
+        }
+
+
+class GetFeishuLoginCallback(Resource):
+    def get(self):
+        if request.args.get('error'):
+            return redirect('/',code=302)
+        code = request.args.get('code') if request.args.get('code') else ''
+        data = '<script>location.replace("/#/user/lark_sso_callback?code=' + code + '")</script>'
+        resp = Response(data)
+        resp.headers['Content-Type'] = 'text/html;charset=utf-8'
+        return resp
+
+
+class GetFeishuUserInfo(Resource):
+    def get(self):
+        if request.args.get('error') == 'access_denied':
+            return {
+                'code': 403,
+                'data': 'LARK_ACCESS_DENIED',
+            }
+        code = request.args.get('code')
+        u = User(app=feishu_app)
+        u.codeResolve(code)
+        return {
+            'code': 0,
+            'data': u.getUserInfo()
+        }
+
+
 api.add_resource(GetBiliList, '/bili_dynamic')
 api.add_resource(GetVersion, '/version')
 api.add_resource(GetBiliDynamic, '/bili_dynamics')
@@ -338,6 +385,9 @@ api.add_resource(GetPubArchiveList, '/bili_archives')
 api.add_resource(GetPubArchiveDetail, '/bili_archives_detail')
 api.add_resource(GetPubArchiveFailMsg, '/bili_xcode_msg')
 api.add_resource(GetFeishuOrgCalendarList, '/lark_calendar_list')
+api.add_resource(GetFeishuUserAuthURI, '/lark_auth_uri')
+api.add_resource(GetFeishuUserInfo, '/lark_identity')
+api.add_resource(GetFeishuLoginCallback, '/lark_user_callback')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
