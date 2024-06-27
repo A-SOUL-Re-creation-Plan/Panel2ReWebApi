@@ -341,10 +341,15 @@ class GetPubArchiveFailMsg(Resource):
 
 class GetFeishuUserAuthURI(Resource):
     def get(self):
-        return_uri = 'http://127.0.0.1:1211/api/lark_user_callback' if not request.headers.get(
-            'Cf-Connecting-Ip') else feishu_userAuthApiAddr
-        return_uri = quote(return_uri, safe='')
-        uri = 'https://open.feishu.cn/open-apis/authen/v1/authorize?app_id=' + feishu_app_id + '&redirect_uri=' + return_uri
+        return_uri = str()
+        x_f_f = request.headers.get('X-Forwarded-For')
+        if x_f_f:
+            if(x_f_f == '127.0.0.1'):
+                return_uri = 'http://127.0.0.1:1213/api/lark_user_callback'
+            return_uri = feishu_userAuthApiAddr
+        else:
+            return_uri = 'http://127.0.0.1:1211/api/lark_user_callback'
+        uri = f'https://open.feishu.cn/open-apis/authen/v1/authorize?app_id={feishu_app_id}&redirect_uri={return_uri}'
         return {
             'u_auth_uri': uri
         }
@@ -353,7 +358,7 @@ class GetFeishuUserAuthURI(Resource):
 class GetFeishuLoginCallback(Resource):
     def get(self):
         if request.args.get('error'):
-            return redirect('/',code=302)
+            return redirect('/', code=302)
         code = request.args.get('code') if request.args.get('code') else ''
         data = '<script>location.replace("/#/user/lark_sso_callback?code=' + code + '")</script>'
         resp = Response(data)
