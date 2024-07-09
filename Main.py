@@ -448,19 +448,25 @@ class GetHuaTuoMLLinkImg(Resource):
         data = json.loads(request.data)
         href = data.get('href').split('?')[0]
         if re.search("https*://[a-z][0-9].hdslb.com/bfs/new_dyn/([0-9)|[a-z])*\\.(jpg|gif|png)", href):
-            payload = {
-                "path": href,
-                "calendar": feishu_calendarID,
-                "token": request.headers.get('Panel2Re-Authorization')
-            }
-            html_return = requests.post(HuaTuoML_service + '/create', params=payload)
-            return {
-                'code': html_return.status_code,
-                'data': html_return.json()
-            }, html_return.status_code
+            if requests.get(href).status_code == 200:
+                payload = {
+                    "path": href,
+                    "calendar": feishu_calendarID,
+                    "token": request.headers.get('Panel2Re-Authorization')
+                }
+                html_return = requests.post(HuaTuoML_service + '/create', params=payload)
+                return {
+                    'code': html_return.status_code,
+                    'data': html_return.json()
+                }, html_return.status_code
+            else:
+                return {
+                    'code': 404,
+                    'msg': 'DOWNLOAD_FAILED'
+                }, 404
         return {
             'code': -1,
-            'msg': 'HTML_TASK_CREATE_FAIL'
+            'msg': 'IMG_LINK_DISMATCH'
         }, 500
 
 
