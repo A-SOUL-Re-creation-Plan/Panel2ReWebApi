@@ -2,20 +2,25 @@ import json
 import os
 import sys
 import time
+import hashlib
+import re
+import urllib.parse
 
-from flask import Flask, request, redirect, Response
+from flask import Flask, request, redirect, Response, send_file
 from flask_restful import Api, Resource
 from flask_cors import CORS
 import requests
 from datetime import datetime, timedelta
 from loguru import logger
-from urllib.parse import quote
+from PIL import Image
+
 
 from bili.bili_wbi import getWBI
 from bili.bili_api import BiliApis
 from as_config import *
-from feishu.calendar import TenantAccessToken, FeishuCalendar
-from feishu.user import User
+from feishu.feishuapp import FeishuApp
+from feishu.calendar import FeishuCalendar
+from feishu.user import FeishuUser
 from utils import ColorConverter
 
 app = Flask(__name__)
@@ -48,18 +53,22 @@ bili_apis = None
 feishu_app = None
 feishu_app_id = str()
 feishu_userAuthApiAddr = str()
+HuaTuoML_service = str()
+feishu_calendarID = str()
 
 
 def loadLarkBotConfig():
-    global feishu_app, feishu_app_id, feishu_userAuthApiAddr
-    if (os.path.exists('lark_bot.json')):
+    global feishu_app, feishu_app_id, feishu_userAuthApiAddr, HuaTuoML_service, feishu_calendarID
+    if os.path.exists('lark_bot.json'):
         with open('lark_bot.json', 'r') as f:
             bot_conf = json.load(f)
             app_id = bot_conf.get('app_id')
             feishu_app_id = app_id
             app_secret = bot_conf.get('app_secret')
             feishu_userAuthApiAddr = bot_conf.get('lark_userCallbackURI')
-            feishu_app = TenantAccessToken(app_id, app_secret)
+            feishu_app = FeishuApp(app_id, app_secret)
+            HuaTuoML_service = bot_conf.get('HuaTuoMLService')
+            feishu_calendarID = bot_conf.get('lark_calendarID')
             logger.info("飞书AppInfo实例化完成")
             f.close()
         return
@@ -265,8 +274,8 @@ class GetASWeeklySchedule(Resource):
 
 class GetPubArchiveList(Resource):
     def get(self):
-        pn = request.args.get('pn')
-        ps = request.args.get('ps')
+        pn = int(request.args.get('pn'))
+        ps = int(request.args.get('ps'))
         status = request.args.get('status')
         return bili_apis.get_member_video_list(page=pn, size=ps, targer_type=status)
 
@@ -278,13 +287,15 @@ class GetFeishuOrgCalendarList(Resource):
         request-config lark_bot.json:飞书自建机器人的app_id与app_secret键值
         '''
         lark_cal = list()
-        calendar_id = json.loads(open('lark_bot.json', 'r').read()).get('lark_calendarID')
+        calendar_id = feishu_calendarID
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         firstDay = str(int((now - timedelta(days=now.weekday())).timestamp()))
-        # firstDay = str(int((now - timedelta(days=now.weekday()) - timedelta(days=50)).timestamp())) # For Debug
         endDay = str(int((now + timedelta(days=7 - now.weekday())).timestamp()))
         lark_calRaw = FeishuCalendar(feishu_app, calendar_id).get_event_list(start_timestamp=firstDay,
-                                                                             end_timestamp=endDay)
+                                                                             end_timestamp=endDay,
+                                                                             user_access_token=request.headers.get(
+                                                                                 'Panel2Re-Authorization'
+                                                                             ))
         '''
         提取API元数据并返回
         '''
@@ -307,7 +318,7 @@ class GetFeishuOrgCalendarList(Resource):
             }
             if "双播" in i.get('summary') or '&' in i.get('summary'):
                 name1, name2 = i.get('summary')[0:2], i.get('summary')[3:5]
-                if (name1 == as_e2c.get(a)):
+                if name1 == as_e2c.get(a):
                     partner = as_c2e.get(name2)
                 else:
                     partner = as_c2e.get(name1)
@@ -341,15 +352,14 @@ class GetPubArchiveFailMsg(Resource):
 
 class GetFeishuUserAuthURI(Resource):
     def get(self):
-        return_uri = str()
         x_f_f = request.headers.get('X-Forwarded-For')
         if x_f_f:
-            if(x_f_f == '127.0.0.1'):
+            if x_f_f == '127.0.0.1':
                 return_uri = 'http://127.0.0.1:1213/api/lark_user_callback'
             return_uri = feishu_userAuthApiAddr
         else:
             return_uri = 'http://127.0.0.1:1211/api/lark_user_callback'
-        uri = f'https://open.feishu.cn/open-apis/authen/v1/authorize?app_id={feishu_app_id}&redirect_uri={return_uri}'
+        uri = f'https://open.feishu.cn/open-apis/authen/v1/authorize?app_id={feishu_app_id}&scope=auth:user.id:read calendar:calendar&redirect_uri={return_uri}'
         return {
             'u_auth_uri': uri
         }
@@ -374,12 +384,129 @@ class GetFeishuUserInfo(Resource):
                 'data': 'LARK_ACCESS_DENIED',
             }
         code = request.args.get('code')
-        u = User(app=feishu_app)
+        u = FeishuUser(app=feishu_app)
         u.codeResolve(code)
         return {
             'code': 0,
             'data': u.getUserInfo()
         }
+
+
+class GetHuaTuoMLUploadImg(Resource):
+    def get(self):
+        return {
+            "code": 405,
+            "msg": 'METHOD_NOT_ALLOWED'
+        }, 405
+
+    def post(self):
+        if not request.headers.get('Panel2Re-Authorization'):
+            return {
+                'code': 403,
+                'msg': "ACCESS_DENIED"
+            }, 403
+        file = request.files['file']
+        ct = file.content_type
+        if 'image' not in ct:
+            return {
+                'code': 418,
+                'msg': "NOT_TEA_INSIDE"
+            }, 418
+        md5_hash = hashlib.md5()
+        chunk_size = 4096
+        while chunk := file.read(chunk_size):
+            md5_hash.update(chunk)
+        file.seek(0)  # 读取完毕之后必须将文件指针复位否则写入为空
+        if not os.path.exists('uploads'):
+            os.mkdir('uploads')
+        filename = 'uploads/img_' + md5_hash.hexdigest()[0:8] + '.png'
+        file.save(filename)
+        payload = {
+            "path": os.path.abspath(filename),
+            "calendar": feishu_calendarID,
+            "token": request.headers.get('Panel2Re-Authorization')
+        }
+        html_return = requests.post(HuaTuoML_service + '/create', params=payload)
+        return {
+            'code': html_return.status_code,
+            'data': html_return.json()
+        }, html_return.status_code
+
+
+class GetHuaTuoMLLinkImg(Resource):
+    def get(self):
+        return {
+            "msg": 'METHOD_NOT_ALLOWED'
+        }, 405
+
+    def post(self):
+        if not request.headers.get('Panel2Re-Authorization'):
+            return {
+                'code': 403,
+                'msg': "ACCESS_DENIED"
+            }, 403
+        data = json.loads(request.data)
+        href = data.get('href').split('?')[0]
+        if re.search("https*://[a-z][0-9].hdslb.com/bfs/new_dyn/([0-9)|[a-z])*\\.(jpg|gif|png)", href):
+            payload = {
+                "path": href,
+                "calendar": feishu_calendarID,
+                "token": request.headers.get('Panel2Re-Authorization')
+            }
+            html_return = requests.post(HuaTuoML_service + '/create', params=payload)
+            return {
+                'code': html_return.status_code,
+                'data': html_return.json()
+            }, html_return.status_code
+        return {
+            'code': -1,
+            'msg': 'HTML_TASK_CREATE_FAIL'
+        }, 500
+
+
+class GetLarkUATRefreshResult(Resource):
+    def get(self):
+        r_t = request.args.get('refreshToken')
+        if not r_t:
+            return {
+                'code': 404,
+                'msg': 'MISSING_ARGS'
+            }, 404
+        u = FeishuUser(app=feishu_app)
+        data = u.refreshToken(r_t)
+        if data.get('code') == 0:
+            return data
+        else:
+            return {
+                'code': 500,
+                'msg': 'ERROR_REFRESHING_TOKEN'
+            }, 500
+
+
+class GetHuaTuoMLStatus(Resource):
+    def get(self):
+        uuid = request.args.get('uuid')
+        if not uuid:
+            return {
+                'code': 404,
+                'msg': 'MISSING_ARGS'
+            }, 404
+        return requests.get(HuaTuoML_service + '/status', params={'uuid': uuid}).json()
+
+
+class GetHuaTuoMLOutput(Resource):
+    def get(self):
+        if not request.args.get('uuid'):
+            return {
+                'code': 404,
+                'msg': 'MISSING_ARGS'
+            }
+        r = requests.get(HuaTuoML_service + '/output', params={'uuid': request.args.get('uuid')}, stream=True).json()
+        return {
+            'code': 0,
+            'data': r.get('fileContents')
+        }
+
 
 
 api.add_resource(GetBiliList, '/bili_dynamic')
@@ -393,6 +520,11 @@ api.add_resource(GetFeishuOrgCalendarList, '/lark_calendar_list')
 api.add_resource(GetFeishuUserAuthURI, '/lark_auth_uri')
 api.add_resource(GetFeishuUserInfo, '/lark_identity')
 api.add_resource(GetFeishuLoginCallback, '/lark_user_callback')
+api.add_resource(GetHuaTuoMLUploadImg, '/lark_calendar_parse/img')
+api.add_resource(GetHuaTuoMLLinkImg, '/lark_calendar_parse/link')
+api.add_resource(GetHuaTuoMLStatus, '/lark_calendar_parse/status')
+api.add_resource(GetHuaTuoMLOutput, '/lark_calendar_parse/output')
+api.add_resource(GetLarkUATRefreshResult, '/lark_refresh_uat')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
