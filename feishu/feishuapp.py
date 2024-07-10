@@ -10,9 +10,9 @@ def get_timestamp():
     return int(time.time())
 
 
-class FeishuApp(object):
+class FeishuAuth(object):
     def __init__(self, app_id, app_secret):
-        self._app_id = app_id
+        self.app_id = app_id
         self._app_secret = app_secret
         self._tenant_access_token = str()
         self._app_access_token = str()
@@ -39,8 +39,9 @@ class FeishuApp(object):
         return self._app_access_token
 
     def _authorize_access_token(self):
+        # doc：https://open.feishu.cn/document/server-docs/authentication-management/access-token/app_access_token_internal
         url = "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal"
-        req_body = {"app_id": self._app_id, "app_secret": self._app_secret}
+        req_body = {"app_id": self.app_id, "app_secret": self._app_secret}
         response = requests.post(url, req_body)
         self.check_error_response(response)
         self._tenant_access_token = response.json().get("tenant_access_token")

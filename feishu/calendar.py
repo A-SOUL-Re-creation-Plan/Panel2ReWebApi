@@ -1,8 +1,8 @@
-from feishu.feishuapp import FeishuApp, LarkException
+from feishu.feishuapp import FeishuAuth, LarkException
 import requests
 
 class FeishuCalendar(object):
-    def __init__(self, feishu_app: FeishuApp, calendar_id):
+    def __init__(self, feishu_app: FeishuAuth, calendar_id):
         self.app = feishu_app
         self.calendar_id = calendar_id
 

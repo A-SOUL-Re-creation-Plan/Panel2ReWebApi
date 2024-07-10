@@ -1,9 +1,10 @@
 import time
 import requests
-from feishu.calendar import FeishuApp
+from feishu.calendar import FeishuAuth
+
 
 class FeishuUser(object):
-    def __init__(self, app: FeishuApp):
+    def __init__(self, app: FeishuAuth):
         self._user_access_token = str()
         self._user_access_token_ts = int()
         self._user_access_token_expires = int()
@@ -11,7 +12,6 @@ class FeishuUser(object):
         self._refresh_token = str()
         self._refresh_token_ts = str()
         self._refresh_token_expires = str()
-        self._tenant_key = str('10f3306f78451758')
 
     def codeResolve(self, code: str):
         url = 'https://open.feishu.cn/open-apis/authen/v1/oidc/access_token'
