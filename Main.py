@@ -26,7 +26,7 @@ from utils import ColorConverter
 app = Flask(__name__)
 CORS(app)
 api = Api(app)
-version = 'V0.0.1_51e2b13'
+version = 'V0.0.1_9d237d40'
 
 bili_headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.1.4.514 Safari/537.36",
@@ -472,7 +472,7 @@ class GetHuaTuoMLLinkImg(Resource):
 
 class GetLarkUATRefreshResult(Resource):
     def get(self):
-        r_t = request.args.get('refreshToken')
+        r_t = request.headers.get('Panel2Re-RefreshAuthorization')
         if not r_t:
             return {
                 'code': 404,
