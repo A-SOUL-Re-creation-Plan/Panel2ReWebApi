@@ -25,25 +25,6 @@ CORS(app)
 api = Api(app)
 version = 'V0.0.1_9d237d40'
 
-bili_headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.1.4.514 Safari/537.36",
-    "Referer": "https://www.bilibili.com/",
-    "Origin": "https://www.bilibili.com/",
-    "Pregma": "no-cache",
-    "Cache-Control": "max-age=0",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-User": "?1",
-    "Sec-Fetch-Dest": "document",
-    # "Cookie": "",
-    "Accept": "*/*",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-    "Accept-Encoding": "",
-    "Connection": "keep-alive"
-}
-
-
 class Panel2ReProgram(object):
     def __init__(self):
         # initialize Feishu and to do some testes
@@ -70,8 +51,8 @@ class Panel2ReProgram(object):
         self.related_user_id = list()
         if os.path.exists('user_data.json'):
             with open('user_data.json', 'r') as f:
-                bili_cookie = json.loads(f.read())
-                bili_cookie = bili_cookie[list(bili_cookie.keys())[0]]
+                self.bili_cookie = json.loads(f.read())
+                self.bili_cookie = self.bili_cookie[list(self.bili_cookie.keys())[0]]
                 logger.info("从JSON文件导入cookies")
         elif os.path.exists('cookies.txt'):
             with open('cookies.txt', 'r') as f:
@@ -89,7 +70,7 @@ class Panel2ReProgram(object):
             bili_dynamic = json.loads(f.read())
             for item in bili_dynamic:
                 self.related_user_id.append(item.get('bili_uid'))
-        self.bili = BiliApis(headers=bili_headers, cookies=bili_cookie)
+        self.bili = BiliApis(cookies=self.bili_cookie)
 
     def getBiliUserInfo(self, bili_uid):
         """
@@ -104,12 +85,7 @@ class Panel2ReProgram(object):
                 datetime.now().timestamp() - os.stat('./cache/bili_user_' + bili_uid + '.json').st_mtime <= 60 * 60 * 24):
             data = json.load(open('./cache/bili_user_' + bili_uid + '.json', 'r'))
         else:
-            params = {
-                'mid': bili_uid
-            }
-            params = getWBI(params)
-            data = requests.get('https://api.bilibili.com/x/space/wbi/acc/info', params=params,
-                                headers=bili_headers, cookies=self.bili_cookie).json()
+            data = program.bili.get_user_info(bili_uid)
             with open('./cache/bili_user_' + bili_uid + '.json', 'w') as f:
                 json.dump(data, f)
                 f.close()
@@ -145,16 +121,7 @@ class GetBiliDynamic(Resource):
             offset = request.args.get("offset")
         # 仅接受以下几个用户
         if uid in program.related_user_id:
-            params = {
-                'host_mid': uid,
-                'offset': offset
-            }
-            data = json.loads(requests.get('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space',
-                                           headers=bili_headers, params=params, cookies=program.bili_cookie)
-                              .text)
-            print(data["code"])
-            dynamic_items = data['data']
-            return dynamic_items
+            return program.bili.get_dynamic_list(uid,offset)
         else:
             return {
                 'errno': -1,
@@ -167,7 +134,7 @@ class GetPubArchiveList(Resource):
         pn = int(request.args.get('pn'))
         ps = int(request.args.get('ps'))
         status = request.args.get('status')
-        return program.bili.get_member_video_list(page=pn, size=ps, targer_type=status)
+        return program.bili.get_member_video_list(page=pn, size=ps, target_type=status)
 
 
 class GetFeishuOrgCalendarList(Resource):
@@ -431,4 +398,4 @@ def index():
 
 if __name__ == '__main__':
     program = Panel2ReProgram()
-    app.run(host='0.0.0.0', port=3007, debug=False)
+    app.run(host='0.0.0.0', port=3007, debug=True)

@@ -1,4 +1,22 @@
 import requests
+from bili.bili_wbi import getWBI
+
+bili_headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Referer": "https://www.bilibili.com/",
+    "Origin": "https://www.bilibili.com/",
+    "Pregma": "no-cache",
+    "Cache-Control": "max-age=0",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-User": "?1",
+    "Sec-Fetch-Dest": "document",
+    "Accept": "*/*",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept-Encoding": "",
+    "Connection": "keep-alive"
+}
 
 copyright_dict = {1: "原创", 2: "转载"}
 state_dict = {1: "橙色通过", 0: "开放浏览", -1: "待审核", -2: "稿件被退回", -3: "网警锁定",
@@ -68,18 +86,18 @@ def is_bvid_correct(bvid: str):
 
 
 class BiliApis(object):
-    def __init__(self, cookies: dict, headers: dict):
+    def __init__(self, cookies: dict):
         self.cookies = cookies
-        self.headers = headers
+        self.headers = bili_headers
 
-    def get_member_video_list(self, page: int = 1, size: int = 10, targer_type: str = 'pubed,not_pubed,is_pubing'):
+    def get_member_video_list(self, page: int = 1, size: int = 10, target_type: str = 'pubed,not_pubed,is_pubing'):
         """
         查询稿件列表
         :param page: 页
         :param size: 页大小
         :param targer_type: 筛选 pubed/not_pubed/is_publing 用','连接
         """
-        url = f"https://member.bilibili.com/x/web/archives?status={targer_type}&pn={page}&ps={size}"
+        url = f"https://member.bilibili.com/x/web/archives?status={target_type}&pn={page}&ps={size}"
         resp = requests.get(url=url, headers=self.headers, cookies=self.cookies)
         if resp.status_code != 200:
             raise Exception(f"调用API时发生错误 HTTP{resp.status_code}")
@@ -177,3 +195,34 @@ class BiliApis(object):
         if resp.json().get("code") != 0:
             raise Exception(resp.json().get("message"))
         return got
+
+    def get_dynamic_list(self, host_mid, offset='') -> dict:
+        """
+        获取动态列表
+        :param host_mid: 目标用户UID
+        :offset: 动态列表偏移值
+        :return: 从哔哩哔哩获取的源数据，详见 https://socialsisteryi.github.io/bilibili-API-collect/docs/dynamic/space.html
+        """
+        params = {
+            'host_mid': host_mid,
+            'offset': offset
+        }
+        resp = requests.get('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space',
+                                headers=self.headers, params=params, cookies=self.cookies).json()
+        if resp.get('code')==-352:
+            raise Exception("哔哩哔哩接口风控")
+        got = resp['data']
+        return got
+    
+    def get_user_info(self, uid):
+        """
+        获取用户信息
+        :param uid: 目标用户UID
+        :return: 从哔哩哔哩获取的源数据，详见 https://socialsisteryi.github.io/bilibili-API-collect/docs/user/info.html
+        """
+        params = getWBI({'mid':uid})
+        resp = requests.get('https://api.bilibili.com/x/space/wbi/acc/info', params=params,
+                                headers=self.headers, cookies=self.cookies).json()
+        if resp.get("code") != 0:
+            raise Exception(resp.get("message"))
+        return resp
