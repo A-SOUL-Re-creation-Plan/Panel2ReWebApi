@@ -95,7 +95,7 @@ class BiliApis(object):
         查询稿件列表
         :param page: 页
         :param size: 页大小
-        :param targer_type: 筛选 pubed/not_pubed/is_publing 用','连接
+        :param target_type: 筛选 pubed/not_pubed/is_publing 用','连接
         """
         url = f"https://member.bilibili.com/x/web/archives?status={target_type}&pn={page}&ps={size}"
         resp = requests.get(url=url, headers=self.headers, cookies=self.cookies)
@@ -111,7 +111,7 @@ class BiliApis(object):
                 archive = item['Archive']
                 for i, v in enumerate(item['Videos']):
                     if v['reject_reason'] != '':
-                        archive['reject_reason']+="\nP{p_num}-{r}".format(p_num=i+1,r=v['reject_reason'])
+                        archive['reject_reason'] += "\nP{p_num}-{r}".format(p_num=i + 1, r=v['reject_reason'])
                 arc_items.append(self.read_archive(archive))
         data: dict = {
             "page": page_info,
@@ -200,7 +200,7 @@ class BiliApis(object):
         """
         获取动态列表
         :param host_mid: 目标用户UID
-        :offset: 动态列表偏移值
+        :param offset: 动态列表偏移值
         :return: 从哔哩哔哩获取的源数据，详见 https://socialsisteryi.github.io/bilibili-API-collect/docs/dynamic/space.html
         """
         params = {
@@ -208,21 +208,45 @@ class BiliApis(object):
             'offset': offset
         }
         resp = requests.get('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space',
-                                headers=self.headers, params=params, cookies=self.cookies).json()
-        if resp.get('code')==-352:
+                            headers=self.headers, params=params, cookies=self.cookies).json()
+        if resp.get('code') == -352:
             raise Exception("哔哩哔哩接口风控")
         got = resp['data']
         return got
-    
+
     def get_user_info(self, uid):
         """
         获取用户信息
         :param uid: 目标用户UID
         :return: 从哔哩哔哩获取的源数据，详见 https://socialsisteryi.github.io/bilibili-API-collect/docs/user/info.html
         """
-        params = getWBI({'mid':uid})
+        params = getWBI({'mid': uid})
         resp = requests.get('https://api.bilibili.com/x/space/wbi/acc/info', params=params,
-                                headers=self.headers, cookies=self.cookies).json()
+                            headers=self.headers, cookies=self.cookies).json()
         if resp.get("code") != 0:
             raise Exception(resp.get("message"))
         return resp
+
+    def get_new_qrcode(self):
+        """
+        获取一个新的QR登录码
+        """
+        resp = requests.get("https://passport.bilibili.com/x/passport-login/web/qrcode/generate", headers=self.headers).json()
+        if resp.get("code") != 0:
+            raise Exception(resp.get("message"))
+        return resp
+
+    def check_qrcode(self, key):
+        """
+        查询qr码状态
+        """
+        resp = requests.get("https://passport.bilibili.com/x/passport-login/web/qrcode/poll",
+                            headers=self.headers, params={"qrcode_key": key})
+        resp_json = resp.json()
+        if resp_json.get("code") != 0:
+            raise Exception(resp_json.get("message"))
+        cookie_str = ";".join(f"{a}={b}" for a, b in resp.cookies.items())
+        return {
+            "raw_data": resp_json,
+            "cookies": cookie_str
+        }

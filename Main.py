@@ -12,7 +12,6 @@ import requests
 from datetime import datetime, timedelta
 from loguru import logger
 
-from bili.bili_wbi import getWBI
 from bili.bili_api import BiliApis
 from as_config import *
 from feishu.feishuapp import FeishuAuth
@@ -24,6 +23,7 @@ app = Flask(__name__)
 CORS(app)
 api = Api(app)
 version = 'V0.0.1_9d237d40'
+
 
 class Panel2ReProgram(object):
     def __init__(self):
@@ -82,7 +82,8 @@ class Panel2ReProgram(object):
             raise NotImplementedError('ERR_NOT_A-SOUL_RELATED')
         # 缓存在本地，24小时刷新时限
         if os.path.exists('./cache/bili_user_' + bili_uid + '.json') and (
-                datetime.now().timestamp() - os.stat('./cache/bili_user_' + bili_uid + '.json').st_mtime <= 60 * 60 * 24):
+                datetime.now().timestamp() - os.stat(
+            './cache/bili_user_' + bili_uid + '.json').st_mtime <= 60 * 60 * 24):
             data = json.load(open('./cache/bili_user_' + bili_uid + '.json', 'r'))
         else:
             data = program.bili.get_user_info(bili_uid)
@@ -121,7 +122,7 @@ class GetBiliDynamic(Resource):
             offset = request.args.get("offset")
         # 仅接受以下几个用户
         if uid in program.related_user_id:
-            return program.bili.get_dynamic_list(uid,offset)
+            return program.bili.get_dynamic_list(uid, offset)
         else:
             return {
                 'errno': -1,
@@ -357,8 +358,7 @@ class GetHuaTuoMLStatus(Resource):
 
 
 class GetHuaTuoMLOutput(Resource):
-    @staticmethod
-    def get():
+    def get(self):
         if not request.args.get('uuid'):
             return {
                 'code': 404,
@@ -369,6 +369,16 @@ class GetHuaTuoMLOutput(Resource):
             'code': 0,
             'data': r.get('fileContents')
         }
+
+
+class GetBiliQRCode(Resource):
+    def get(self):
+        return program.bili.get_new_qrcode()
+
+
+class GetBiliQRStatus(Resource):
+    def get(self):
+        return program.bili.check_qrcode(request.args.get('key'))
 
 
 api.add_resource(GetBiliList, '/bili_dynamic')
@@ -387,6 +397,8 @@ api.add_resource(GetHuaTuoMLLinkImg, '/lark_calendar_parse/link')
 api.add_resource(GetHuaTuoMLStatus, '/lark_calendar_parse/status')
 api.add_resource(GetHuaTuoMLOutput, '/lark_calendar_parse/output')
 api.add_resource(GetLarkUATRefreshResult, '/lark_refresh_uat')
+api.add_resource(GetBiliQRCode, '/bili_qrcode')
+api.add_resource(GetBiliQRStatus, '/bili_qrpool')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
@@ -398,4 +410,4 @@ def index():
 
 if __name__ == '__main__':
     program = Panel2ReProgram()
-    app.run(host='0.0.0.0', port=3007, debug=True)
+    app.run(host='0.0.0.0', port=3007, debug=False)
