@@ -337,13 +337,10 @@ class GetLarkUATRefreshResult(Resource):
             }, 404
         u = FeishuUser(app=program.feishu_auth)
         data = u.refreshToken(r_t)
-        if data.get('code') == 0:
-            return data
-        else:
-            return {
-                'code': 500,
-                'msg': 'ERROR_REFRESHING_TOKEN'
-            }, 500
+        code = 500
+        if(data.get('code')==0):
+            code = 200
+        return data,code
 
 
 class GetHuaTuoMLStatus(Resource):

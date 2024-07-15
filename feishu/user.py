@@ -49,7 +49,7 @@ class FeishuUser(object):
                 'at_expires_at': self._user_access_token_expires + self._user_access_token_ts,
                 'rt_expires_at': self._refresh_token_ts + self._refresh_token_expires
             }
-        return r_d
+        return resp
 
     def refreshToken(self, refresh_token: str):
         url = 'https://open.feishu.cn/open-apis/authen/v1/oidc/refresh_access_token'
