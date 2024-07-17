@@ -37,7 +37,6 @@ class FeishuUser(object):
             "Authorization": "Bearer " + self._user_access_token
         }
         resp = requests.get(url=url, headers=headers).json()
-        r_d = dict()
         if resp.get('code') == 0:
             data = resp.get('data')
             r_d = {
@@ -49,6 +48,7 @@ class FeishuUser(object):
                 'at_expires_at': self._user_access_token_expires + self._user_access_token_ts,
                 'rt_expires_at': self._refresh_token_ts + self._refresh_token_expires
             }
+            return r_d
         return resp
 
     def refreshToken(self, refresh_token: str):
