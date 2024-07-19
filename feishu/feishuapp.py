@@ -1,5 +1,6 @@
 import requests
 import time
+from loguru import logger
 
 
 def get_timestamp():
@@ -16,7 +17,7 @@ class FeishuAuth(object):
         self._app_secret = app_secret
         self._tenant_access_token = str()
         self._app_access_token = str()
-        self._timestamp = int(0)
+        self._expired_at = int(0)
 
     @property
     def tenant_access_token(self):
@@ -24,8 +25,10 @@ class FeishuAuth(object):
         获取 tenant_access_token
         :return:
         """
-        if (get_timestamp() - self._timestamp) > 7200 or len(self._tenant_access_token) < 2:
+        if get_timestamp() > self._expired_at or len(self._tenant_access_token) < 2:
             self._authorize_access_token()
+            logger.info(f'飞书AppInfo更新完成.{self._tenant_access_token}')
+            logger.info(f'凭据到期时间: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self._expired_at))}')
         return self._tenant_access_token
 
     @property
@@ -34,8 +37,10 @@ class FeishuAuth(object):
         获取 app_access_token
         :return:
         """
-        if (get_timestamp() - self._timestamp) > 7200 or len(self._app_access_token) < 2:
+        if get_timestamp() > self._expired_at or len(self._app_access_token) < 2:
             self._authorize_access_token()
+            logger.info(f'飞书AppInfo更新完成.{self._app_access_token}')
+            logger.info(f'凭据到期时间: {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self._expired_at))}')
         return self._app_access_token
 
     def _authorize_access_token(self):
@@ -46,7 +51,7 @@ class FeishuAuth(object):
         self.check_error_response(response)
         self._tenant_access_token = response.json().get("tenant_access_token")
         self._app_access_token = response.json().get("app_access_token")
-        self._timestamp = get_timestamp()
+        self._expired_at = get_timestamp() + response.json().get("expire")
 
     @staticmethod
     def check_error_response(resp):
