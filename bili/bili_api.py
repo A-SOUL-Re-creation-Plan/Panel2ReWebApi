@@ -1,5 +1,6 @@
 import requests
 from bili.bili_wbi import getWBI
+from bili.bili_domain import randomDomain
 
 bili_headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -207,7 +208,7 @@ class BiliApis(object):
             'host_mid': host_mid,
             'offset': offset
         }
-        resp = requests.get('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space',
+        resp = requests.get('https://'+randomDomain()+'/x/polymer/web-dynamic/v1/feed/space',
                             headers=self.headers, params=params, cookies=self.cookies).json()
         if resp.get('code') == -352:
             raise Exception("哔哩哔哩接口风控")
@@ -221,7 +222,7 @@ class BiliApis(object):
         :return: 从哔哩哔哩获取的源数据，详见 https://socialsisteryi.github.io/bilibili-API-collect/docs/user/info.html
         """
         params = getWBI({'mid': uid})
-        resp = requests.get('https://api.bilibili.com/x/space/wbi/acc/info', params=params,
+        resp = requests.get('https://'+randomDomain()+'/x/space/wbi/acc/info', params=params,
                             headers=self.headers, cookies=self.cookies).json()
         if resp.get("code") != 0:
             raise Exception(resp.get("message"))
