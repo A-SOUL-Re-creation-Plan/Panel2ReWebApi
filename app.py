@@ -144,6 +144,11 @@ class GetFeishuOrgCalendarList(Resource):
         飞书机器人关联组织公共日历事件列表获取
         request-config lark_bot.json:飞书自建机器人的app_id与app_secret键值
         """
+        if not request.headers.get('Panel2Re-Authorization'):
+            return {
+                'code': 403,
+                'msg': 'NOT_AUTHORIZED'
+            }, 403
         lark_cal = list()
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         first_day = str(int((now - timedelta(days=now.weekday())).timestamp()))
@@ -156,12 +161,11 @@ class GetFeishuOrgCalendarList(Resource):
         # 提取API元数据并返回
         # 好狠的写法，我不改了（
         for i in feishu_resp:
-            a = lark_cal_color.get(ColorConverter.int32ToHex(i.get('color')))
-            c = as_color.get(a)
+            a = lark_cal_color.get(ColorConverter.int32ToHex(i.get('color'))) if lark_cal_color.get(ColorConverter.int32ToHex(i.get('color'))) else 'asoul'
             s = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(int(i.get('start_time').get('timestamp'))))
             e = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(int(i.get('end_time').get('timestamp'))))
             lark_cal_item = {
-                'color': c,
+                'color': as_color.get(a),
                 'live_title': i.get('description').replace('\n', ''),
                 'title': i.get('summary'),
                 'start': s,
@@ -185,7 +189,10 @@ class GetFeishuOrgCalendarList(Resource):
                     'partner_liveroom': as_liveroom.get(partner)
                 }
             lark_cal.append(lark_cal_item)
-        return lark_cal
+        return {
+            'code': 200,
+            'data': lark_cal
+        }, 200
 
 
 class GetPubArchiveDetail(Resource):
@@ -201,7 +208,16 @@ class GetVersion(Resource):
 
 class GetPubArchiveFailMsg(Resource):
     def get(self):
+        msg = 'PERMISSION_FAILED'
+        try:
+            msg = program.bili.get_rejection_reason(bvid=request.args.get('bvid'))
+        except:
+            return {
+                'code': 400,
+                'msg': '获取失败'
+            }, 403
         return {
+            'code': 200,
             'msg': program.bili.get_rejection_reason(bvid=request.args.get('bvid'))
         }
 
@@ -407,4 +423,4 @@ def index():
 
 if __name__ == '__main__':
     program = Panel2ReProgram()
-    app.run(host='0.0.0.0', port=3007, debug=False)
+    app.run(host='0.0.0.0', port=3007, debug=True)
