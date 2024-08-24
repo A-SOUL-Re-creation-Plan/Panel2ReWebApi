@@ -49,12 +49,36 @@ class Panel2ReProgram(object):
         # initialize bili
         self.bili_cookie = dict()
         self.related_user_id = list()
-        if os.path.exists('user_data.json'):
+        if os.path.exists('biliup.json'):
+            '''
+            格式: biliup-app / biliup-rs 导出的用户凭据
+            '''
+            with open('biliup.json', 'r') as f:
+                biliup_json = json.loads(f.read())
+                for i in biliup_json.get('cookie_info').get('cookies'):
+                    self.bili_cookie[i.get('name')] = i.get('value')
+                logger.info('从biliup-rs数据文件导入cookie')
+        elif os.path.exists('user_data.json'):
+            '''
+            格式:
+                {
+                    "UID": {
+                        "SESSDATA": "",
+                        "bili_jct": "",
+                        "DedeUserID": "",
+                        "DedeUserID__ckMd5": "",
+                        "sid": ""
+                    }
+                }
+            '''
             with open('user_data.json', 'r') as f:
                 self.bili_cookie = json.loads(f.read())
                 self.bili_cookie = self.bili_cookie[list(self.bili_cookie.keys())[0]]
                 logger.info("从JSON文件导入cookies")
         elif os.path.exists('cookies.txt'):
+            '''
+            格式样例: 哔哩哔哩主站浏览器控制台使用 `document.cookie` 查看
+            '''
             with open('cookies.txt', 'r') as f:
                 logger.info("从原始raw字符串导入cookies")
                 cookie_raw = f.read()
@@ -63,8 +87,9 @@ class Panel2ReProgram(object):
                     cookie = cookie.split('=')
                     self.bili_cookie[cookie[0]] = cookie[1]
         else:
-            logger.error("找不到符合的Cookies文件")
+            logger.error("找不到符合的Cookies文件。")
             sys.exit(0)
+        logger.info('当前导入的用户UID:'+str(self.bili_cookie.get('DedeUserID')))
         # 加载受信成员ID
         with open('dynamic_config.json', 'r', encoding='utf-8') as f:
             bili_dynamic = json.loads(f.read())
