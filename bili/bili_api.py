@@ -1,3 +1,4 @@
+import time
 import requests
 from bili.bili_wbi import getWBI
 from bili.bili_domain import randomDomain
@@ -235,6 +236,7 @@ class BiliApis(object):
         resp = requests.get("https://passport.bilibili.com/x/passport-login/web/qrcode/generate", headers=self.headers).json()
         if resp.get("code") != 0:
             raise Exception(resp.get("message"))
+        resp['data']['time'] = int(time.time())
         return resp
 
     def check_qrcode(self, key):
