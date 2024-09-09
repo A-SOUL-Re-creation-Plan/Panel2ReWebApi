@@ -252,11 +252,11 @@ class GetFeishuUserAuthURI(Resource):
         x_f_f = request.headers.get('X-Forwarded-For')
         if x_f_f is not None:
             if x_f_f == '127.0.0.1':
-                return_uri = 'http://127.0.0.1:1213/api/lark_user_callback'
+                return_uri = 'http://localhost:1213/api/lark_user_callback'
             else:
                 return_uri = program.feishu_callback
         else:
-            return_uri = 'http://127.0.0.1:1211/api/lark_user_callback'
+            return_uri = 'http://localhost:1211/api/lark_user_callback'
         uri = f'https://open.feishu.cn/open-apis/authen/v1/authorize?app_id={program.feishu_auth.app_id}&scope=auth:user.id:read calendar:calendar&redirect_uri={return_uri}'
         return {
             'u_auth_uri': uri
@@ -448,4 +448,4 @@ def index():
 
 if __name__ == '__main__':
     program = Panel2ReProgram()
-    app.run(host='0.0.0.0', port=3007, debug=True)
+    app.run(host='0.0.0.0', port=3007, debug=False)
