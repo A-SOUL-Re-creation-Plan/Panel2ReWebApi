@@ -3,11 +3,14 @@ import os
 import sys
 import time
 import hashlib
+import uuid
 import re
+import sqlite3
 
-from flask import Flask, request, redirect, Response
+from flask import Flask, request, redirect, Response, g
 from flask_restful import Api, Resource
 from flask_cors import CORS
+from flask_httpauth import HTTPTokenAuth
 import requests
 from datetime import datetime, timedelta
 from loguru import logger
@@ -22,30 +25,31 @@ from utils import ColorConverter
 app = Flask(__name__)
 CORS(app)
 api = Api(app)
-version = 'V0.0.1_9d237d40'
-
+auth = HTTPTokenAuth(header="Panel2Re-Authorization",scheme="")
+version = 'V0.1.0'
 
 class Panel2ReProgram(object):
     def __init__(self):
+        # 2024.9.14 f**k Feishu Enterprise Plan
         # initialize Feishu and to do some testes
-        try:
-            if os.path.exists('lark_bot.json'):
-                with open('lark_bot.json', 'r') as f:
-                    bot_conf = json.load(f)
-                    app_id = bot_conf.get('app_id')
-                    app_secret = bot_conf.get('app_secret')
-                    self.huatuo_base = bot_conf.get('HuaTuoMLService')
-                    calendar = bot_conf.get('lark_calendarID')
-                    self.feishu_callback = bot_conf.get('lark_userCallbackURI')
-                    # FeishuAuth and FeishuCalendar
-                    self.feishu_auth = FeishuAuth(app_id, app_secret)
-                    self.feishu_calendar = FeishuCalendar(self.feishu_auth, calendar)
-                    logger.info(f"飞书AppInfo实例化完成.{self.feishu_auth.app_access_token}")
-            else:
-                raise FileNotFoundError()
-        except Exception as e:
-            logger.warning(f"飞书企业自建应用凭据读取失败.{e}")
-            raise FileNotFoundError()
+        # try:
+        #     if os.path.exists('lark_bot.json'):
+        #         with open('lark_bot.json', 'r') as f:
+        #             bot_conf = json.load(f)
+        #             app_id = bot_conf.get('app_id')
+        #             app_secret = bot_conf.get('app_secret')
+        #             self.huatuo_base = bot_conf.get('HuaTuoMLService')
+        #             calendar = bot_conf.get('lark_calendarID')
+        #             self.feishu_callback = bot_conf.get('lark_userCallbackURI')
+        #             # FeishuAuth and FeishuCalendar
+        #             self.feishu_auth = FeishuAuth(app_id, app_secret)
+        #             self.feishu_calendar = FeishuCalendar(self.feishu_auth, calendar)
+        #             logger.info(f"飞书AppInfo实例化完成.{self.feishu_auth.app_access_token}")
+        #     else:
+        #         raise FileNotFoundError()
+        # except Exception as e:
+        #     logger.warning(f"飞书企业自建应用凭据读取失败.{e}")
+        #     raise FileNotFoundError()
         # initialize bili
         self.bili_cookie = dict()
         self.related_user_id = list()
@@ -97,6 +101,25 @@ class Panel2ReProgram(object):
                 self.related_user_id.append(item.get('bili_uid'))
         self.bili = BiliApis(cookies=self.bili_cookie)
 
+        db_pwd = str()
+        if not os.path.exists('user.db'):
+            logger.warning('请设置Panel2Re管理员用户密码，留空默认为admin: ')
+            db_pwd = input()
+            if db_pwd == '':
+                db_pwd = 'admin'
+            logger.info('创建的用户密码：'+db_pwd)
+            conn = sqlite3.connect('user.db')
+            conn_cursor = conn.cursor()
+            conn_cursor.execute("PRAGMA FOREIGN_KEYS=ON")
+            conn_cursor.execute("CREATE TABLE IF NOT EXISTS user_auth(u_id INT PRIMARY KEY UNIQUE NOT NULL,u_name VARCHAR(70) NOT NULL,u_pwd VARCHAR(70) NOT NULL)")
+            conn_cursor.execute("CREATE TABLE IF NOT EXISTS token(u_token VARCHAR(70) PRIMARY KEY UNIQUE,u_id INT,expire_at VARCHAR(20) NOT NULL)")
+            if len(conn_cursor.execute("SELECT * FROM user_auth where u_id = 1").fetchall()) == 0:
+                conn_cursor.execute("INSERT INTO user_auth (u_id,u_name,u_pwd) VALUES (1,'admin','" + hashlib.sha256(bytes(db_pwd,'utf-8')).hexdigest() +"');")
+            conn_cursor.execute("CREATE TABLE IF NOT EXISTS user_info(u_id INT PRIMARY KEY UNIQUE NOT NULL,u_username VARCHAR(35) NOT NULL,u_avatar VARCHAR(220))")
+            conn_cursor.execute("INSERT INTO user_info (u_id,u_username,u_avatar) VALUES (1,'Panel2Re','https://s1-imfile.feishucdn.com/static-resource/v1/v2_2b167f57-26ad-45f1-8231-90a0b331f2ag~')")
+            conn.commit()
+            conn.close()
+
     def getBiliUserInfo(self, bili_uid):
         """
         获取用户信息，缓存在本地
@@ -117,8 +140,26 @@ class Panel2ReProgram(object):
                 f.close()
         return data
 
+@auth.verify_token
+def verify_token(token):
+    conn = sqlite3.connect('user.db')
+    data = conn.cursor().execute("SELECT u_token,expire_at FROM token WHERE u_token='"+token+"'").fetchall()
+    conn.close()
+    if len(data) > 0:
+        if int(data[0][1])/1000 > time.time():
+            return token
+        return False
+    return False
+
+@auth.error_handler
+def auth_error(status):
+    return {
+        'code': 403,
+        'msg': 'AUTH_FAILED'
+    }, 403
 
 class GetBiliList(Resource):
+    @auth.login_required
     def get(self):
         """
         获取/刷新 dynamic_config中的用户的信息
@@ -135,6 +176,7 @@ class GetBiliList(Resource):
 
 
 class GetBiliDynamic(Resource):
+    @auth.login_required
     def get(self):
         """
         获取动态信息
@@ -156,6 +198,7 @@ class GetBiliDynamic(Resource):
 
 
 class GetPubArchiveList(Resource):
+    @auth.login_required
     def get(self):
         pn = int(request.args.get('pn'))
         ps = int(request.args.get('ps'))
@@ -164,25 +207,20 @@ class GetPubArchiveList(Resource):
 
 
 class GetFeishuOrgCalendarList(Resource):
+    @auth.login_required
     def get(self):
         """
         飞书机器人关联组织公共日历事件列表获取
         request-config lark_bot.json:飞书自建机器人的app_id与app_secret键值
         """
-        if not request.headers.get('Panel2Re-Authorization'):
-            return {
-                'code': 403,
-                'msg': 'NOT_AUTHORIZED'
-            }, 403
         lark_cal = list()
         now = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         first_day = str(int((now - timedelta(days=now.weekday())).timestamp()))
         end_day = str(int((now + timedelta(days=7 - now.weekday())).timestamp()))
         feishu_resp = program.feishu_calendar.get_event_list(start_timestamp=first_day,
                                                              end_timestamp=end_day,
-                                                             user_access_token=request.headers.get(
-                                                                 'Panel2Re-Authorization'
-                                                             ))
+                                                             user_access_token=str(auth.get_auth()).strip()
+                                                             )
         # 提取API元数据并返回
         # 好狠的写法，我不改了（
         for i in feishu_resp:
@@ -291,6 +329,7 @@ class GetFeishuUserInfo(Resource):
 
 
 class GetHuaTuoMLUploadImg(Resource):
+    @auth.login_required
     def get(self):
         return {
             "code": 405,
@@ -298,11 +337,6 @@ class GetHuaTuoMLUploadImg(Resource):
         }, 405
 
     def post(self):
-        if not request.headers.get('Panel2Re-Authorization'):
-            return {
-                'code': 403,
-                'msg': "ACCESS_DENIED"
-            }, 403
         file = request.files['file']
         ct = file.content_type
         if 'image' not in ct:
@@ -322,7 +356,7 @@ class GetHuaTuoMLUploadImg(Resource):
         payload = {
             "path": os.path.abspath(filename),
             "calendar": program.feishu_calendar.calendar_id,
-            "token": request.headers.get('Panel2Re-Authorization')
+            "token": str(auth.get_auth()).strip()
         }
         html_return = requests.post(program.huatuo_base + '/create', params=payload)
         return {
@@ -332,17 +366,13 @@ class GetHuaTuoMLUploadImg(Resource):
 
 
 class GetHuaTuoMLLinkImg(Resource):
+    @auth.login_required
     def get(self):
         return {
             "msg": 'METHOD_NOT_ALLOWED'
         }, 405
 
     def post(self):
-        if not request.headers.get('Panel2Re-Authorization'):
-            return {
-                'code': 403,
-                'msg': "ACCESS_DENIED"
-            }, 403
         data = json.loads(request.data)
         href = data.get('href').split('?')[0]
         if re.search("https*://[a-z][0-9].hdslb.com/bfs/new_dyn/([0-9)|[a-z])*\\.(jpg|gif|png)", href):
@@ -350,7 +380,7 @@ class GetHuaTuoMLLinkImg(Resource):
                 payload = {
                     "path": href,
                     "calendar": program.feishu_calendar.calendar_id,
-                    "token": request.headers.get('Panel2Re-Authorization')
+                    "token": str(auth.get_auth()).strip()
                 }
                 html_return = requests.post(program.huatuo_base + '/create', params=payload)
                 return {
@@ -369,6 +399,7 @@ class GetHuaTuoMLLinkImg(Resource):
 
 
 class GetLarkUATRefreshResult(Resource):
+    @auth.login_required
     def get(self):
         r_t = request.headers.get('Panel2Re-RefreshAuthorization')
         if not r_t:
@@ -385,6 +416,7 @@ class GetLarkUATRefreshResult(Resource):
 
 
 class GetHuaTuoMLStatus(Resource):
+    @auth.login_required
     def get(self):
         uuid = request.args.get('uuid')
         if not uuid:
@@ -396,6 +428,7 @@ class GetHuaTuoMLStatus(Resource):
 
 
 class GetHuaTuoMLOutput(Resource):
+    @auth.login_required
     def get(self):
         if not request.args.get('uuid'):
             return {
@@ -410,14 +443,56 @@ class GetHuaTuoMLOutput(Resource):
 
 
 class GetBiliQRCode(Resource):
+    @auth.login_required
     def get(self):
         return program.bili.get_new_qrcode()
 
 
 class GetBiliQRStatus(Resource):
+    @auth.login_required
     def get(self):
         return program.bili.check_qrcode(request.args.get('key'))
-
+    
+class LegacyLoginApi(Resource):
+    def get(self):
+        return {
+            'code': 405,
+            'msg': 'METHOD_NOT_ALLOWED'
+        },405
+    def post(self):
+        post_data = request.json.get('data')
+        if post_data.get('diana_subscribed') == False or post_data.get('diana_subscribed') == None:
+            return {
+                'code': 307,
+                'msg': 'SUBSCRIBE_DIANA_FIRST'
+            },500
+        
+        conn = sqlite3.connect('user.db')
+        c = conn.cursor()
+        data = c.execute("SELECT * FROM user_auth WHERE u_name = '" + post_data.get('id') + "' AND u_pwd = '"+ hashlib.sha256(bytes(str(post_data.get('pwd')),'utf-8')).hexdigest() +"'").fetchall()
+        if len(data) == 0:
+            return {
+                'code': 403,
+                'msg': 'DISMATCHING_USERNAME_PWD'
+            },403
+        else:
+            data_ui = c.execute("SELECT u_id,u_username,u_avatar FROM user_info WHERE u_id = 1").fetchall()[0]
+            new_token = "2Re-" + hashlib.sha256(bytes(str(uuid.uuid4()),'utf-8')).hexdigest()[0:15]
+            new_expire = int(time.time() + 604800) * 1000
+            c.execute("INSERT INTO token (u_token,u_id,expire_at) VALUES ('"+new_token+"','"+str(data_ui[0])+"','"+str(new_expire)+"')")
+            conn.commit()
+            return {
+                'code': 0,
+                'data': {
+                    'user_info': {
+                        "id": data_ui[0],
+                        "username": data_ui[1],
+                        "avatar": data_ui[2],
+                    },
+                    'token': new_token,
+                    'expire_at': new_expire
+                }
+            },200
 
 api.add_resource(GetBiliList, '/bili_dynamic')
 api.add_resource(GetVersion, '/version')
@@ -427,16 +502,17 @@ api.add_resource(GetPubArchiveList, '/bili_archives')
 api.add_resource(GetPubArchiveDetail, '/bili_archives_detail')
 api.add_resource(GetPubArchiveFailMsg, '/bili_xcode_msg')
 api.add_resource(GetFeishuOrgCalendarList, '/lark_calendar_list')
-api.add_resource(GetFeishuUserAuthURI, '/lark_auth_uri')
-api.add_resource(GetFeishuUserInfo, '/lark_identity')
-api.add_resource(GetFeishuLoginCallback, '/lark_user_callback')
-api.add_resource(GetHuaTuoMLUploadImg, '/lark_calendar_parse/img')
-api.add_resource(GetHuaTuoMLLinkImg, '/lark_calendar_parse/link')
-api.add_resource(GetHuaTuoMLStatus, '/lark_calendar_parse/status')
-api.add_resource(GetHuaTuoMLOutput, '/lark_calendar_parse/output')
-api.add_resource(GetLarkUATRefreshResult, '/lark_refresh_uat')
+# api.add_resource(GetFeishuUserAuthURI, '/lark_auth_uri')
+# api.add_resource(GetFeishuUserInfo, '/lark_identity')
+# api.add_resource(GetFeishuLoginCallback, '/lark_user_callback')
+# api.add_resource(GetHuaTuoMLUploadImg, '/lark_calendar_parse/img')
+# api.add_resource(GetHuaTuoMLLinkImg, '/lark_calendar_parse/link')
+# api.add_resource(GetHuaTuoMLStatus, '/lark_calendar_parse/status')
+# api.add_resource(GetHuaTuoMLOutput, '/lark_calendar_parse/output')
+# api.add_resource(GetLarkUATRefreshResult, '/lark_refresh_uat')
 api.add_resource(GetBiliQRCode, '/bili_qrcode')
 api.add_resource(GetBiliQRStatus, '/bili_qrpool')
+api.add_resource(LegacyLoginApi,'/user/login_legacy')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
@@ -448,4 +524,4 @@ def index():
 
 if __name__ == '__main__':
     program = Panel2ReProgram()
-    app.run(host='0.0.0.0', port=3007, debug=False)
+    app.run(host='0.0.0.0', port=3007, debug=True)
