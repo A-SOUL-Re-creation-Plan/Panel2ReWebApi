@@ -142,6 +142,7 @@ class Panel2ReProgram(object):
 
 @auth.verify_token
 def verify_token(token):
+    logger.debug(token)
     conn = sqlite3.connect('user.db')
     data = conn.cursor().execute("SELECT u_token,expire_at FROM token WHERE u_token='"+token+"'").fetchall()
     conn.cursor().execute("DELETE FROM token WHERE expire_at <= '"+ str(time.time()*1000) +"'")
@@ -209,7 +210,6 @@ class GetPubArchiveList(Resource):
 
 
 class GetFeishuOrgCalendarList(Resource):
-    @auth.login_required
     def get(self):
         """
         飞书机器人关联组织公共日历事件列表获取
@@ -261,6 +261,7 @@ class GetFeishuOrgCalendarList(Resource):
 
 
 class GetPubArchiveDetail(Resource):
+    @auth.login_required
     def get(self):
         bvid = request.args.get('bvid')
         return program.bili.get_member_info(bvid=bvid)
@@ -272,6 +273,7 @@ class GetVersion(Resource):
 
 
 class GetPubArchiveFailMsg(Resource):
+    @auth.login_required
     def get(self):
         msg = 'PERMISSION_FAILED'
         try:
@@ -338,6 +340,7 @@ class GetHuaTuoMLUploadImg(Resource):
             "msg": 'METHOD_NOT_ALLOWED'
         }, 405
 
+    @auth.login_required
     def post(self):
         file = request.files['file']
         ct = file.content_type
@@ -374,6 +377,7 @@ class GetHuaTuoMLLinkImg(Resource):
             "msg": 'METHOD_NOT_ALLOWED'
         }, 405
 
+    @auth.login_required
     def post(self):
         data = json.loads(request.data)
         href = data.get('href').split('?')[0]
@@ -496,6 +500,16 @@ class LegacyLoginApi(Resource):
                 }
             },200
 
+class LegacyLogoutApi(Resource):
+    @auth.login_required
+    def delete(self):
+        token = auth.current_user()
+        logger.debug(token)
+        conn = sqlite3.connect('user.db')
+        conn.cursor().execute("DELETE FROM token WHERE u_token = '"+token+"'")
+        conn.close()
+        return {'code':0,'msg':'BACK_TO_UNiVERSE'}
+
 api.add_resource(GetBiliList, '/bili_dynamic')
 api.add_resource(GetVersion, '/version')
 api.add_resource(GetBiliDynamic, '/bili_dynamics')
@@ -515,6 +529,7 @@ api.add_resource(GetFeishuOrgCalendarList, '/lark_calendar_list')
 api.add_resource(GetBiliQRCode, '/bili_qrcode')
 api.add_resource(GetBiliQRStatus, '/bili_qrpool')
 api.add_resource(LegacyLoginApi,'/user/login_legacy')
+api.add_resource(LegacyLogoutApi,'/user/logout_legacy')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
