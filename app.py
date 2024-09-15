@@ -144,6 +144,8 @@ class Panel2ReProgram(object):
 def verify_token(token):
     conn = sqlite3.connect('user.db')
     data = conn.cursor().execute("SELECT u_token,expire_at FROM token WHERE u_token='"+token+"'").fetchall()
+    conn.cursor().execute("DELETE FROM token WHERE expire_at <= '"+ str(time.time()*1000) +"'")
+    conn.commit()
     conn.close()
     if len(data) > 0:
         if int(data[0][1])/1000 > time.time():
