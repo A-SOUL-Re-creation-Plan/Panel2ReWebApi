@@ -142,7 +142,6 @@ class Panel2ReProgram(object):
 
 @auth.verify_token
 def verify_token(token):
-    logger.debug(token)
     conn = sqlite3.connect('user.db')
     data = conn.cursor().execute("SELECT u_token,expire_at FROM token WHERE u_token='"+token+"'").fetchall()
     conn.cursor().execute("DELETE FROM token WHERE expire_at <= '"+ str(time.time()*1000) +"'")
@@ -174,7 +173,9 @@ class GetBiliList(Resource):
             open('dynamic_config.json', 'w').close()
         bili_dynamic = json.loads(open('dynamic_config.json', 'r', encoding='utf-8').read())
         for i in bili_dynamic:
-            i['avatar'] = program.getBiliUserInfo(i['bili_uid'])['data']['face']
+            info = program.getBiliUserInfo(i['bili_uid'])
+            i['avatar'] = info.get('data').get('card').get('face')
+        logger.debug(bili_dynamic)
         return bili_dynamic
 
 
