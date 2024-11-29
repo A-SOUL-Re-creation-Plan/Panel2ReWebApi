@@ -98,7 +98,6 @@ class BiliApis(object):
         resp = requests.get(url=url, headers=self.headers, cookies=self.cookies)
         if resp.status_code == 200:
             got: dict = resp.json().get("data")
-            logger.debug(got.get("b_3"))
             return got.get("b_3")
 
     def get_member_video_list(self, page: int = 1, size: int = 10, target_type: str = 'pubed,not_pubed,is_pubing'):
@@ -221,7 +220,6 @@ class BiliApis(object):
         resp = requests.get('https://'+randomDomain()+'/x/polymer/web-dynamic/v1/feed/space',
                             headers=self.headers, params=params, cookies=self.cookies).json()
         if resp.get('code') == -352:
-            logger.debug(resp)
             raise Exception("哔哩哔哩接口风控")
         got = resp['data']
         return got

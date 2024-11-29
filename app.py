@@ -175,7 +175,6 @@ class GetBiliList(Resource):
         for i in bili_dynamic:
             info = program.getBiliUserInfo(i['bili_uid'])
             i['avatar'] = info.get('data').get('card').get('face')
-        logger.debug(bili_dynamic)
         return bili_dynamic
 
 
@@ -505,7 +504,6 @@ class LegacyLogoutApi(Resource):
     @auth.login_required
     def delete(self):
         token = auth.current_user()
-        logger.debug(token)
         conn = sqlite3.connect('user.db')
         conn.cursor().execute("DELETE FROM token WHERE u_token = '"+token+"'")
         conn.close()
