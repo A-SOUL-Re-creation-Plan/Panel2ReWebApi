@@ -538,7 +538,7 @@ class LegacyRegisterApi(Resource):  # only for single user "admin"
                 return {
                     'code': 403,
                     'msg': "DIFFERENT_TWO_PWDS"
-                }
+                },403
             conn_cursor.execute("PRAGMA FOREIGN_KEYS=ON")
             if len(conn_cursor.execute("SELECT * FROM user_auth where u_id = 1").fetchall()) == 0:
                 conn_cursor.execute("INSERT INTO user_auth (u_id,u_name,u_pwd) VALUES (1,'admin','" + hashlib.sha256(bytes(post_data.get('pwd'),'utf-8')).hexdigest() +"');")
