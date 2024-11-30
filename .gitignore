@@ -9,3 +9,5 @@ lark_bot.json
 biliup.json
 uploads/
 *.db
+build/
+dist/
