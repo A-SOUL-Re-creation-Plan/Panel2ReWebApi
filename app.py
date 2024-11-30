@@ -100,25 +100,14 @@ class Panel2ReProgram(object):
             for item in bili_dynamic:
                 self.related_user_id.append(item.get('bili_uid'))
         self.bili = BiliApis(cookies=self.bili_cookie)
-
-        db_pwd = str()
-        if not os.path.exists('user.db'):
-            logger.warning('请设置Panel2Re管理员用户密码，留空默认为admin: ')
-            db_pwd = input()
-            if db_pwd == '':
-                db_pwd = 'admin'
-            logger.info('创建的用户密码：'+db_pwd)
-            conn = sqlite3.connect('user.db')
-            conn_cursor = conn.cursor()
-            conn_cursor.execute("PRAGMA FOREIGN_KEYS=ON")
-            conn_cursor.execute("CREATE TABLE IF NOT EXISTS user_auth(u_id INT PRIMARY KEY UNIQUE NOT NULL,u_name VARCHAR(70) NOT NULL,u_pwd VARCHAR(70) NOT NULL)")
-            conn_cursor.execute("CREATE TABLE IF NOT EXISTS token(u_token VARCHAR(70) PRIMARY KEY UNIQUE,u_id INT,expire_at VARCHAR(20) NOT NULL)")
-            if len(conn_cursor.execute("SELECT * FROM user_auth where u_id = 1").fetchall()) == 0:
-                conn_cursor.execute("INSERT INTO user_auth (u_id,u_name,u_pwd) VALUES (1,'admin','" + hashlib.sha256(bytes(db_pwd,'utf-8')).hexdigest() +"');")
-            conn_cursor.execute("CREATE TABLE IF NOT EXISTS user_info(u_id INT PRIMARY KEY UNIQUE NOT NULL,u_username VARCHAR(35) NOT NULL,u_avatar VARCHAR(220))")
-            conn_cursor.execute("INSERT INTO user_info (u_id,u_username,u_avatar) VALUES (1,'Panel2Re','https://s1-imfile.feishucdn.com/static-resource/v1/v2_2b167f57-26ad-45f1-8231-90a0b331f2ag~')")
-            conn.commit()
-            conn.close()
+        conn = sqlite3.connect('user.db')
+        conn_cursor = conn.cursor()
+        conn_cursor.execute("PRAGMA FOREIGN_KEYS=ON")
+        conn_cursor.execute("CREATE TABLE IF NOT EXISTS user_auth(u_id INT PRIMARY KEY UNIQUE NOT NULL,u_name VARCHAR(70) NOT NULL,u_pwd VARCHAR(70) NOT NULL)")
+        conn_cursor.execute("CREATE TABLE IF NOT EXISTS token(u_token VARCHAR(70) PRIMARY KEY UNIQUE,u_id INT,expire_at VARCHAR(20) NOT NULL)")
+        conn_cursor.execute("CREATE TABLE IF NOT EXISTS user_info(u_id INT PRIMARY KEY UNIQUE NOT NULL,u_username VARCHAR(35) NOT NULL,u_avatar VARCHAR(220))")
+        conn.commit()
+        conn.close()
 
     def getBiliUserInfo(self, bili_uid):
         """
@@ -509,6 +498,58 @@ class LegacyLogoutApi(Resource):
         conn.close()
         return {'code':0,'msg':'BACK_TO_UNiVERSE'}
 
+class LegacyRegisterApi(Resource):  # only for single user "admin"
+    def get(self):
+        conn = sqlite3.connect('user.db')
+        conn_cursor = conn.cursor()
+        u_count = conn_cursor.execute('SELECT u_id from user_info').fetchall()
+        conn_cursor.close()
+        if len(u_count)>=1 and os.path.exists('user.db'):
+            return {
+                "code": -1,
+                "msg": 'REGISTER_DISABLED'
+            }, 403
+        else:
+            return {
+                "code": 1,
+                "msg": "REGISTER_OPEN"
+            }, 200
+    
+    def post(self):
+        conn = sqlite3.connect('user.db')
+        conn_cursor = conn.cursor()
+        u_count = conn_cursor.execute('SELECT u_id from user_info').fetchall()
+        if len(u_count)>=1:
+            conn_cursor.close()
+            return {
+                "code": -1,
+                "msg": 'REGISTER_DISABLED'
+            }, 403
+        else:
+            conn = sqlite3.connect('user.db')
+            conn_cursor = conn.cursor()
+            post_data = request.json.get('data')
+            if post_data.get('diana_subscribed') == False or post_data.get('diana_subscribed') == None:
+                return {
+                    'code': 307,
+                    'msg': 'SUBSCRIBE_DIANA_FIRST'
+                },500
+            elif post_data.get('pwd') != post_data.get('pwd_again'):
+                return {
+                    'code': 403,
+                    'msg': "DIFFERENT_TWO_PWDS"
+                }
+            conn_cursor.execute("PRAGMA FOREIGN_KEYS=ON")
+            if len(conn_cursor.execute("SELECT * FROM user_auth where u_id = 1").fetchall()) == 0:
+                conn_cursor.execute("INSERT INTO user_auth (u_id,u_name,u_pwd) VALUES (1,'admin','" + hashlib.sha256(bytes(post_data.get('pwd'),'utf-8')).hexdigest() +"');")
+            conn_cursor.execute("INSERT INTO user_info (u_id,u_username,u_avatar) VALUES (1,'Panel2Re','https://s1-imfile.feishucdn.com/static-resource/v1/v2_2b167f57-26ad-45f1-8231-90a0b331f2ag~')")
+            conn.commit()
+            conn.close()
+            return {
+                "code": 0,
+                "msg": "REGISTER_SUCCESS"
+            }, 200
+        
 api.add_resource(GetBiliList, '/bili_dynamic')
 api.add_resource(GetVersion, '/version')
 api.add_resource(GetBiliDynamic, '/bili_dynamics')
@@ -529,6 +570,7 @@ api.add_resource(GetBiliQRCode, '/bili_qrcode')
 api.add_resource(GetBiliQRStatus, '/bili_qrpool')
 api.add_resource(LegacyLoginApi,'/user/login_legacy')
 api.add_resource(LegacyLogoutApi,'/user/logout_legacy')
+api.add_resource(LegacyRegisterApi,'/user/register_legacy')
 
 
 # api.add_resource(proxyBiliImage, '/bili_img_proxy')
@@ -540,4 +582,7 @@ def index():
 
 if __name__ == '__main__':
     program = Panel2ReProgram()
-    app.run(host='0.0.0.0', port=3007, debug=True)
+    if os.environ.get('FOR_ELECTRON_API'):
+        app.run(host='127.0.0.1', port=3007, debug=False)
+    else:
+        app.run(host='0.0.0.0', port=3007, debug=True)
