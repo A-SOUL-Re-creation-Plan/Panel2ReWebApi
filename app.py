@@ -94,6 +94,7 @@ class Panel2ReProgram(object):
             logger.error("找不到符合的Cookies文件。")
             sys.exit(0)
         logger.info('当前导入的用户UID:'+str(self.bili_cookie.get('DedeUserID')))
+        
         # 加载受信成员ID
         with open('dynamic_config.json', 'r', encoding='utf-8') as f:
             bili_dynamic = json.loads(f.read())

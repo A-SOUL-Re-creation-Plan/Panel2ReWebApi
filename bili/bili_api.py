@@ -1,5 +1,7 @@
 import time
 import requests
+import random
+import uuid
 from bili.bili_wbi import getWBI
 from bili.bili_domain import randomDomain
 from loguru import logger
@@ -10,12 +12,13 @@ bili_headers = {
     "Pregma": "no-cache",
     "Cache-Control": "max-age=0",
     "Upgrade-Insecure-Requests": "1",
+    "Sec-Ch-UA": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     "Sec-Fetch-Site": "none",
     "Sec-Fetch-Mode": "navigate",
     "Sec-Fetch-User": "?1",
     "Sec-Fetch-Dest": "document",
     "Accept": "*/*",
-    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Accept-Encoding": "",
     "Connection": "keep-alive"
 }
@@ -92,13 +95,19 @@ class BiliApis(object):
         self.cookies = cookies
         self.headers = bili_headers
         self.cookies["buvid3"] = self.get_buvid3()
+        self.cookies["buvid4"] = "buvid4-failed-1"
 
     def get_buvid3(self):
-        url = f"https://api.bilibili.com/x/frontend/finger/spi"
-        resp = requests.get(url=url, headers=self.headers, cookies=self.cookies)
-        if resp.status_code == 200:
-            got: dict = resp.json().get("data")
-            return got.get("b_3")
+        return f'{str(uuid.uuid4()).upper()}{random.randint(0, 99999):05d}infoc'
+
+    def get_dmImg(self, params: dict):
+        # https://github.com/SocialSisterYi/bilibili-API-collect/issues/868#issuecomment-1916892809
+        dm_rand = 'ABCDEFGHIJK'
+        params['dm_img_list'] ='[]'
+        params['dm_img_str'] =''.join(random.sample(dm_rand, 2))
+        params['dm_cover_img_str'] =''.join(random.sample(dm_rand, 2))
+        params['dm_img_inter'] ='{"ds":[],"wh":[0,0,0],"of":[0,0,0]}'
+        return params
 
     def get_member_video_list(self, page: int = 1, size: int = 10, target_type: str = 'pubed,not_pubed,is_pubing'):
         """
@@ -213,10 +222,12 @@ class BiliApis(object):
         :param offset: 动态列表偏移值
         :return: 从哔哩哔哩获取的源数据，详见 https://socialsisteryi.github.io/bilibili-API-collect/docs/dynamic/space.html
         """
+        
         params = {
             'host_mid': host_mid,
-            'offset': offset
+            'offset': offset,
         }
+        params = getWBI(self.get_dmImg(params),self.cookies)
         resp = requests.get('https://'+randomDomain()+'/x/polymer/web-dynamic/v1/feed/space',
                             headers=self.headers, params=params, cookies=self.cookies).json()
         if resp.get('code') == -352:
